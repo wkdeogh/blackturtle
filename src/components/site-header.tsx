@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/dashboard-actions";
+import { GlobalRefreshIndicator } from "@/components/global-refresh-indicator";
 
 const NAV_ITEMS = [
   { href: "/macro", label: "FRED 매크로" },
@@ -20,7 +21,7 @@ export function SiteHeader() {
         <nav className="site-nav" aria-label="대시보드 메뉴">
           {NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>)}
         </nav>
-        <div className="header-actions"><span className="private-label">PRIVATE</span><LogoutButton /></div>
+        <div className="header-actions"><GlobalRefreshIndicator /><span className="private-label">PRIVATE</span><LogoutButton /></div>
       </div>
     </header>
   );

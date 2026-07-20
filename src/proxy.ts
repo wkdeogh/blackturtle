@@ -5,6 +5,7 @@ const PUBLIC_PATHS = new Set(["/login", "/api/auth/login"]);
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  if (path.startsWith("/.well-known/workflow/")) return NextResponse.next();
   const authenticated = await verifySessionToken(
     request.cookies.get(sessionConfig.cookieName)?.value,
     process.env.AUTH_SECRET,

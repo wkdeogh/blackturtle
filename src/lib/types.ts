@@ -19,6 +19,19 @@ export interface MacroSeries {
 }
 
 export type RefreshSource = "macro" | "social";
+export type RefreshRunState = "running" | "success" | "failed";
+export type RefreshStage = "queued" | "collecting" | "saving" | "completed" | "failed";
+
+export interface RefreshRunStatus {
+  id: string;
+  source: RefreshSource | null;
+  status: RefreshRunState;
+  stage: RefreshStage | null;
+  workflowRunId: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  error: string | null;
+}
 
 export interface CompanyMention {
   ticker: string;

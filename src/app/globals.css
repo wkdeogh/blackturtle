@@ -64,6 +64,8 @@ a { color: inherit; }
 .wordmark { display: flex; align-items: center; gap: 14px; text-decoration: none; font-size: 14px; font-weight: 950; letter-spacing: .04em; }
 .wordmark small { display: block; color: var(--muted); font-size: 8px; letter-spacing: .18em; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
+.global-refresh-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 8px; color: #f1d6a7; background: #3c2d17; font-size: 8px; font-weight: 950; white-space: nowrap; }
+.global-refresh-status i { width: 7px; height: 7px; border: 2px solid rgba(241,214,167,.32); border-top-color: #f1d6a7; border-radius: 50%; animation: spin .9s linear infinite; }
 .site-nav { display: flex; align-items: center; align-self: stretch; gap: 3px; margin-left: auto; }
 .site-nav a { position: relative; display: flex; align-items: center; padding: 0 13px; color: var(--muted); text-decoration: none; font-size: 11px; font-weight: 900; white-space: nowrap; }
 .site-nav a::after { content: ""; position: absolute; right: 13px; bottom: -1px; left: 13px; height: 2px; background: transparent; }

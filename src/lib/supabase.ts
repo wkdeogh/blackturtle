@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { DashboardSnapshot, RefreshSource, StoredSnapshot } from "@/lib/types";
+import type { DashboardSnapshot, RefreshRunStatus, RefreshSource, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -45,6 +45,47 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
     createdAt: data.created_at as string,
     payload: data.payload as DashboardSnapshot,
   };
+}
+
+function mapRefreshRun(row: Record<string, unknown>): RefreshRunStatus {
+  return {
+    id: row.id as string,
+    source: row.source === "macro" || row.source === "social" ? row.source : null,
+    status: row.status as RefreshRunStatus["status"],
+    stage: (row.stage as RefreshRunStatus["stage"] | undefined) ?? null,
+    workflowRunId: (row.workflow_run_id as string | null | undefined) ?? null,
+    startedAt: row.started_at as string,
+    finishedAt: (row.finished_at as string | null | undefined) ?? null,
+    error: (row.error_summary as string | null | undefined) ?? null,
+  };
+}
+
+export async function getLatestRefreshRun(): Promise<RefreshRunStatus | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  const full = await supabase
+    .from("refresh_runs")
+    .select("id, source, status, stage, workflow_run_id, started_at, finished_at, error_summary")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!full.error) return full.data ? mapRefreshRun(full.data) : null;
+
+  const migrationMissing = full.error.code === "42703" || full.error.code === "PGRST204";
+  if (!migrationMissing) {
+    if (full.error.code === "42P01") return null;
+    throw new Error(`갱신 상태 조회 실패: ${full.error.message}`);
+  }
+
+  const legacy = await supabase
+    .from("refresh_runs")
+    .select("id, status, started_at, finished_at, error_summary")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (legacy.error) throw new Error(`갱신 상태 조회 실패: ${legacy.error.message}`);
+  return legacy.data ? mapRefreshRun(legacy.data) : null;
 }
 
 export function getSnapshotSource(snapshot: StoredSnapshot): RefreshSource | null {
