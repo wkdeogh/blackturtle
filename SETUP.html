@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Black Turtle 외부 서비스와 API 설정 체크리스트">
+  <title>Black Turtle · Setup Checklist</title>
+  <style>
+    :root { --ink:#17211b; --muted:#657168; --paper:#f4f1e8; --card:#fffdf7; --line:#d9d4c6; --green:#195b43; --green2:#dcecdf; --amber:#c98225; --red:#a84c3f; --shadow:0 15px 36px rgba(28,43,34,.08); }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:radial-gradient(circle at 90% 0%,rgba(201,130,37,.10),transparent 28rem),var(--paper); font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.65; }
+    a { color:var(--green); text-underline-offset:3px; }
+    .shell { width:min(920px,calc(100% - 30px)); margin:0 auto; }
+    .topbar { position:sticky; top:0; z-index:5; border-bottom:1px solid var(--line); background:rgba(244,241,232,.9); backdrop-filter:blur(14px); }
+    .topbar .shell { min-height:60px; display:flex; align-items:center; justify-content:space-between; gap:15px; }
+    .brand { color:var(--ink); font-weight:900; text-decoration:none; letter-spacing:-.02em; }
+    .back { border:1px solid var(--line); border-radius:999px; padding:7px 11px; color:var(--ink); text-decoration:none; font-size:12px; font-weight:800; background:var(--card); }
+    header.hero { padding:68px 0 30px; }
+    .eyebrow { color:var(--green); font-size:12px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { margin:10px 0 15px; font-size:clamp(40px,8vw,72px); line-height:1; letter-spacing:-.06em; }
+    .lead { max-width:680px; color:#465149; font-size:18px; }
+    .warning { margin-top:24px; border-left:5px solid var(--red); border-radius:14px; background:#f5e2dd; padding:16px 18px; color:#62352f; font-size:14px; }
+    .progress-card { position:sticky; top:72px; z-index:4; margin:18px 0 28px; border:1px solid var(--line); border-radius:16px; background:rgba(255,253,247,.94); box-shadow:var(--shadow); padding:14px 16px; }
+    .progress-row { display:flex; justify-content:space-between; gap:10px; font-size:12px; font-weight:900; }
+    .track { height:8px; margin-top:9px; overflow:hidden; border-radius:999px; background:#e6e1d4; }
+    .fill { width:0; height:100%; border-radius:inherit; background:var(--green); transition:width .2s ease; }
+    main { padding-bottom:70px; }
+    section { scroll-margin-top:145px; margin:0 0 16px; border:1px solid var(--line); border-radius:20px; background:var(--card); box-shadow:var(--shadow); overflow:hidden; }
+    .section-head { display:grid; grid-template-columns:48px 1fr auto; gap:14px; align-items:center; padding:20px; border-bottom:1px solid var(--line); background:#faf7ef; }
+    .step { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:var(--green); color:white; font-weight:900; }
+    h2 { margin:0; font-size:21px; letter-spacing:-.03em; }
+    .tag { border-radius:999px; padding:4px 8px; color:var(--green); background:var(--green2); font-size:10px; font-weight:900; text-transform:uppercase; }
+    .tag.optional { color:#765019; background:#f2e1c5; }
+    .content { padding:20px; }
+    .content > p { color:var(--muted); font-size:14px; }
+    .check { display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:start; margin:14px 0; }
+    .check input { width:18px; height:18px; margin:3px 0 0; accent-color:var(--green); }
+    .check label { cursor:pointer; }
+    .check b { display:block; font-size:14px; }
+    .check span { display:block; color:var(--muted); font-size:13px; }
+    .box { margin:15px 0; border:1px solid var(--line); border-radius:14px; background:#f7f4eb; padding:15px; }
+    .box h3 { margin:0 0 8px; font-size:14px; }
+    .box p, .box li { color:#536158; font-size:13px; }
+    ul,ol { margin:8px 0 0; padding-left:20px; }
+    li+li { margin-top:6px; }
+    code { border-radius:6px; background:#eae6da; padding:2px 6px; color:#294837; font-family:"SFMono-Regular",Consolas,monospace; font-size:.9em; }
+    pre { overflow:auto; margin:10px 0 0; border-radius:12px; background:#17211b; color:#eaf2e9; padding:14px; font-size:12px; line-height:1.7; }
+    .links { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .links a { border:1px solid var(--line); border-radius:9px; background:white; padding:7px 10px; text-decoration:none; font-size:12px; font-weight:800; }
+    .choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .choice { border:1px solid var(--line); border-radius:14px; padding:15px; }
+    .choice.recommended { border:2px solid var(--green); }
+    .choice strong { display:block; margin-bottom:5px; }
+    .choice p { margin:0; color:var(--muted); font-size:13px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { padding:10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--green); }
+    tr:last-child td { border-bottom:0; }
+    .table-wrap { overflow-x:auto; }
+    .done { padding:24px; color:white; background:var(--green); border-radius:20px; }
+    .done h2 { font-size:28px; }
+    .done p { margin-bottom:0; color:#dcecdf; }
+    footer { padding:28px 0 50px; color:var(--muted); font-size:12px; }
+    @media (max-width:680px) { .section-head { grid-template-columns:42px 1fr; } .section-head .tag { grid-column:2; justify-self:start; } .choice-grid { grid-template-columns:1fr; } .progress-card { top:68px; } }
+    @media print { .topbar,.progress-card { position:static; } section { break-inside:avoid; box-shadow:none; } input { appearance:none; border:1px solid #777; } }
+  </style>
+</head>
+<body>
+  <div class="topbar"><div class="shell"><a class="brand" href="#top">BLACK TURTLE · SETUP</a><a class="back" href="plan.html">← 계획서</a></div></div>
+
+  <div class="shell" id="top">
+    <header class="hero">
+      <div class="eyebrow">Owner action checklist</div>
+      <h1>내가 준비할 것</h1>
+      <p class="lead">코드 구현 전에 계정·API 키·대상 목록을 준비하는 순서입니다. 체크 상태는 이 브라우저에만 저장되며 서버로 전송되지 않습니다.</p>
+      <div class="warning"><b>비밀키 안전 수칙</b><br>API 키와 secret key는 GitHub, 문서, 스크린샷, 채팅에 붙여 넣지 마세요. 실제 값은 로컬 <code>.env.local</code>과 Vercel Environment Variables에만 저장합니다.</div>
+    </header>
+
+    <div class="progress-card" aria-live="polite"><div class="progress-row"><span>설정 진행률</span><span id="progressText">0 / 0</span></div><div class="track"><div class="fill" id="progressFill"></div></div></div>
+
+    <main>
+      <section id="accounts">
+        <div class="section-head"><span class="step">1</span><h2>기본 계정과 저장소</h2><span class="tag">필수</span></div>
+        <div class="content">
+          <label class="check"><input type="checkbox" data-check><span><b>GitHub 저장소 확인</b><span><a href="https://github.com/wkdeogh/blackturtle" target="_blank" rel="noreferrer">wkdeogh/blackturtle</a>가 본인 계정에 있고 Vercel에서 접근 가능해야 합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>현재 로컬 저장소에 원격 주소 연결</b><span>현재 작업 폴더에는 Git 원격 주소가 아직 등록되어 있지 않습니다. 구현 단계에서 아래 명령으로 연결합니다.</span></span></label>
+          <pre><code>git remote add origin https://github.com/wkdeogh/blackturtle.git
+git remote -v</code></pre>
+          <label class="check"><input type="checkbox" data-check><span><b>Supabase 계정 준비</b><span>새 프로젝트를 만들 수 있는 계정과 프로젝트 비밀번호를 준비합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>Vercel 계정에 GitHub 연결</b><span>Vercel이 위 저장소를 Import할 수 있도록 GitHub 권한을 허용합니다.</span></span></label>
+          <div class="links"><a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">Supabase Dashboard ↗</a><a href="https://vercel.com/new" target="_blank" rel="noreferrer">Vercel New Project ↗</a></div>
+        </div>
+      </section>
+
+      <section id="fred">
+        <div class="section-head"><span class="step">2</span><h2>FRED API</h2><span class="tag">필수</span></div>
+        <div class="content">
+          <p>FRED 계정을 만들고 개인 API 키를 발급합니다. 키는 서버에서만 사용하며 변수 이름은 <code>FRED_API_KEY</code>로 통일합니다.</p>
+          <label class="check"><input type="checkbox" data-check><span><b>FRED 계정 로그인</b><span>St. Louis Fed 계정이 없다면 먼저 가입합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>API Key 발급</b><span>API Keys 화면에서 새 키를 생성하고 비밀번호 관리자 등 안전한 곳에 보관합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>첫 지표 목록 확인</b><span>권장 시작값: DGS2, DGS10, T10Y2Y, FEDFUNDS, CPIAUCSL, UNRATE, PAYEMS, M2SL, VIXCLS. 빼거나 더할 지표를 메모합니다.</span></span></label>
+          <div class="box"><h3>주의</h3><p>FRED 시리즈 중에는 제3자 저작권 제한이 있는 데이터도 있습니다. 개인용 범위를 넘어 공개 서비스로 확장할 때는 각 시리즈 notes와 이용 조건을 다시 확인합니다.</p></div>
+          <div class="links"><a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noreferrer">API Key 안내 ↗</a><a href="https://fred.stlouisfed.org/docs/api/fred/series_observations.html" target="_blank" rel="noreferrer">Series Observations ↗</a><a href="https://fred.stlouisfed.org/docs/api/terms_of_use.html" target="_blank" rel="noreferrer">이용 조건 ↗</a></div>
+        </div>
+      </section>
+
+      <section id="x-api">
+        <div class="section-head"><span class="step">3</span><h2>X API와 대상 계정</h2><span class="tag">필수 · 비용 확인</span></div>
+        <div class="content">
+          <p>X Developer Console에서 App을 만들고 Bearer Token을 준비합니다. 공개 계정 게시물 읽기는 앱 전용 Bearer 인증으로 설계하되, 실제 endpoint 접근 가능 여부와 사용량 과금은 신청 화면에서 최종 확인합니다.</p>
+          <label class="check"><input type="checkbox" data-check><span><b>X Developer 계정과 Project/App 생성</b><span>사용 목적을 정확히 기입하고 Developer Console에서 앱을 만듭니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>Pay-per-use 예산·한도 확인</b><span>X API는 현재 사용량 기반 접근을 안내하고 있습니다. 구현 전에 사용자 조회와 사용자 게시물 timeline의 예상 호출량·비용을 Console에서 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>Bearer Token 보관</b><span>서버 전용 변수 <code>X_BEARER_TOKEN</code>으로 저장할 값을 안전하게 보관합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>모니터링 계정 목록 작성</b><span><code>@</code>를 제외한 username을 한 줄에 하나씩 준비합니다. 계정 수가 많을수록 호출량과 분석 비용이 늘어납니다.</span></span></label>
+          <div class="box"><h3>수집 기본 규칙 — 구현 전에 수정 가능</h3><ul><li>각 계정의 원글을 수집하고, reply와 repost는 기본 제외</li><li>최초 갱신은 최근 7일 또는 계정당 최대 100개 중 먼저 도달하는 범위</li><li>이후 갱신은 저장된 <code>since_id</code> 뒤의 새 게시물만 수집</li><li>보호 계정과 접근 불가 게시물은 수집 대상에서 제외</li></ul></div>
+          <div class="links"><a href="https://developer.x.com/" target="_blank" rel="noreferrer">Developer Console ↗</a><a href="https://docs.x.com/x-api/getting-started/pricing" target="_blank" rel="noreferrer">Pricing / Usage ↗</a><a href="https://docs.x.com/x-api/users/get-user-by-username" target="_blank" rel="noreferrer">Username Lookup ↗</a><a href="https://docs.x.com/x-api/users/get-posts" target="_blank" rel="noreferrer">User Posts ↗</a></div>
+        </div>
+      </section>
+
+      <section id="analysis-choice">
+        <div class="section-head"><span class="step">4</span><h2>감성 분석 방식 선택</h2><span class="tag optional">선택</span></div>
+        <div class="content">
+          <div class="choice-grid">
+            <article class="choice recommended"><strong>A. LLM API · 권장</strong><p>다중 기업, 반어, 복합 문맥에 상대적으로 강합니다. 게시물 × 기업별 감성·신뢰도·근거를 JSON으로 받습니다. 호출 비용이 추가됩니다.</p></article>
+            <article class="choice"><strong>B. 규칙 기반 · 무API</strong><p>회사 alias와 영어 감성 사전으로 시작합니다. 비용은 적지만 비꼼, 은어, 복합 문장에서 오판이 많아질 수 있습니다.</p></article>
+          </div>
+          <label class="check"><input type="checkbox" data-check><span><b>분석 방식 결정</b><span>A를 선택하면 사용할 제공자와 월 예산 상한을 정합니다. OpenAI를 사용할 경우 키는 <code>OPENAI_API_KEY</code> 서버 변수로 보관합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>초기 기업 사전 준비</b><span>관심 기업의 ticker / 정식명 / 자주 쓰는 별칭을 준비합니다. 예: <code>NVDA | NVIDIA | Nvidia</code>.</span></span></label>
+          <div class="links"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI API Keys ↗</a><a href="https://developers.openai.com/api/docs/guides/structured-outputs" target="_blank" rel="noreferrer">Structured Outputs ↗</a></div>
+        </div>
+      </section>
+
+      <section id="supabase">
+        <div class="section-head"><span class="step">5</span><h2>Supabase 프로젝트</h2><span class="tag">필수</span></div>
+        <div class="content">
+          <label class="check"><input type="checkbox" data-check><span><b>새 프로젝트 생성</b><span>한국에서 주로 사용할 개인용 앱이므로 가까운 region을 선택합니다. DB 비밀번호는 별도 보관합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>연결 정보 준비</b><span>Project Connect 화면에서 URL, publishable key, secret key를 확인합니다. secret key는 절대로 브라우저에 넣지 않습니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>DB migration 적용</b><span>저장소의 <code>supabase/migrations/202607200001_initial.sql</code> 전체를 SQL Editor에 붙여 넣고 Run을 누릅니다. 테이블·갱신 잠금 함수·RLS가 한 번에 생성됩니다.</span></span></label>
+          <div class="box"><h3>필요한 변수</h3><div class="table-wrap"><table><thead><tr><th>변수</th><th>공개 여부</th><th>용도</th></tr></thead><tbody><tr><td><code>SUPABASE_URL</code></td><td>서버 전용으로 사용</td><td>프로젝트 URL</td></tr><tr><td><code>SUPABASE_SECRET_KEY</code></td><td>서버 전용</td><td>스냅샷 저장과 갱신 함수 실행</td></tr><tr><td><code>SITE_PASSWORD</code></td><td>서버 전용</td><td>최초 접속 비밀번호</td></tr><tr><td><code>AUTH_SECRET</code></td><td>서버 전용</td><td>90일 로그인 쿠키 서명</td></tr></tbody></table></div></div>
+          <div class="links"><a href="https://supabase.com/docs/guides/getting-started/quickstarts/nextjs" target="_blank" rel="noreferrer">Next.js Quickstart ↗</a><a href="https://supabase.com/docs/guides/database/postgres/row-level-security" target="_blank" rel="noreferrer">RLS 안내 ↗</a></div>
+        </div>
+      </section>
+
+      <section id="vercel">
+        <div class="section-head"><span class="step">6</span><h2>Vercel 연결과 환경 변수</h2><span class="tag">구현 후 필수</span></div>
+        <div class="content">
+          <label class="check"><input type="checkbox" data-check><span><b>GitHub 저장소 Import</b><span>Vercel → Add New → Project에서 <code>wkdeogh/blackturtle</code>를 선택합니다. Framework는 Next.js 자동 감지를 사용합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>환경 변수 등록</b><span>아래 변수들을 Production에 입력합니다. Preview 배포도 시험할 경우 Preview에도 별도로 입력합니다.</span></span></label>
+          <pre><code>SITE_PASSWORD=          # 길고 고유한 비밀번호
+AUTH_SECRET=            # openssl rand -base64 48 로 생성
+SUPABASE_URL=
+SUPABASE_SECRET_KEY=
+FRED_API_KEY=
+X_BEARER_TOKEN=
+X_TARGET_USERNAMES=     # @ 없이 쉼표로 구분, 최대 10개</code></pre>
+          <label class="check"><input type="checkbox" data-check><span><b>환경 변수 변경 후 재배포</b><span>Vercel 환경 변수 변경은 이미 만들어진 배포에 자동 반영되지 않으므로 새 배포를 실행합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>비밀번호 게이트 확인</b><span>배포 주소 첫 접속에서 비밀번호를 묻고, 성공 후 새로고침해도 로그인 상태가 유지되는지 확인합니다.</span></span></label>
+          <div class="links"><a href="https://vercel.com/docs/environment-variables" target="_blank" rel="noreferrer">Vercel Environment Variables ↗</a><a href="https://vercel.com/docs/git/vercel-for-github" target="_blank" rel="noreferrer">Vercel for GitHub ↗</a></div>
+        </div>
+      </section>
+
+      <section id="final-check">
+        <div class="section-head"><span class="step">7</span><h2>배포 후 확인</h2><span class="tag">필수</span></div>
+        <div class="content">
+          <label class="check"><input type="checkbox" data-check><span><b>로그인 전 접근 차단</b><span>시크릿 창에서 대시보드가 비밀번호 화면으로 이동하고, 갱신 API 직접 호출은 401로 차단되는지 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>첫 접속 빈 상태</b><span>DB가 비어 있을 때 샘플 수치 대신 “데이터 없음”이 보이는지 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>첫 수동 갱신</b><span>버튼을 눌렀을 때만 외부 데이터가 들어오고 마지막 갱신 시각이 표시되는지 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>재접속과 장애 복구</b><span>재접속해도 이전 데이터가 남고, 잘못된 테스트 키로 갱신 실패 시에도 기존 스냅샷이 유지되는지 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>모바일 확인</b><span>실제 휴대폰에서 로그인, 스크롤, 필터, 갱신 버튼, X 원문 이동을 확인합니다.</span></span></label>
+        </div>
+      </section>
+
+      <div class="done"><h2>준비가 끝나면</h2><p>민감한 값 자체를 전달할 필요는 없습니다. Supabase migration 실행과 Vercel 환경 변수 등록을 마친 뒤 새 배포를 실행하면 첫 비밀번호 로그인과 데이터 갱신을 바로 시험할 수 있습니다.</p></div>
+    </main>
+  </div>
+
+  <footer><div class="shell">체크 상태는 현재 브라우저의 localStorage에만 저장됩니다. API 접근 조건과 요금은 변경될 수 있으므로 실제 발급 화면을 최종 기준으로 사용하세요.</div></footer>
+  <script>
+    (() => {
+      const key = "blackturtle-setup-v1";
+      const checks = [...document.querySelectorAll("[data-check]")];
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(key) || "{}"); } catch (_) { saved = {}; }
+      checks.forEach((box, index) => {
+        box.checked = Boolean(saved[index]);
+        box.addEventListener("change", () => {
+          saved[index] = box.checked;
+          try { localStorage.setItem(key, JSON.stringify(saved)); } catch (_) {}
+          update();
+        });
+      });
+      function update() {
+        const done = checks.filter(box => box.checked).length;
+        document.getElementById("progressText").textContent = `${done} / ${checks.length}`;
+        document.getElementById("progressFill").style.width = `${checks.length ? (done / checks.length) * 100 : 0}%`;
+      }
+      update();
+    })();
+  </script>
+</body>
+</html>

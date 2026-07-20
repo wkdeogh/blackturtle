@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Black Turtle 미국주식 투자 대시보드 MVP 구현 계획">
+  <title>Black Turtle · Product Plan</title>
+  <style>
+    :root {
+      --ink: #17211b;
+      --muted: #647168;
+      --paper: #f4f1e8;
+      --card: #fffdf7;
+      --line: #d9d4c6;
+      --green: #195b43;
+      --green-2: #dcecdf;
+      --amber: #c98225;
+      --red: #a84c3f;
+      --blue: #365b73;
+      --shadow: 0 16px 40px rgba(28, 43, 34, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(25,91,67,.09), transparent 30rem),
+        var(--paper);
+      font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      border-bottom: 1px solid rgba(217,212,198,.9);
+      background: rgba(244,241,232,.88);
+      backdrop-filter: blur(14px);
+    }
+    .topbar .shell { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: -.02em; text-decoration: none; }
+    .mark { width: 28px; height: 20px; border-radius: 50% 50% 44% 44%; background: var(--green); position: relative; }
+    .mark::before, .mark::after { content: ""; position: absolute; width: 8px; height: 7px; border-radius: 50%; background: var(--green); top: 7px; }
+    .mark::before { left: -5px; } .mark::after { right: -5px; }
+    nav { display: flex; gap: 8px; }
+    nav a { text-decoration: none; font-size: 13px; font-weight: 800; padding: 8px 11px; border-radius: 999px; }
+    nav a:hover { background: var(--green-2); }
+    .hero { padding: 74px 0 44px; }
+    .eyebrow { color: var(--green); font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 830px; margin: 12px 0 18px; font-size: clamp(40px, 8vw, 82px); line-height: .98; letter-spacing: -.065em; }
+    .lead { max-width: 760px; margin: 0; color: #425047; font-size: clamp(17px, 2.2vw, 22px); }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 28px; }
+    .pill { border: 1px solid var(--line); background: rgba(255,253,247,.75); border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 800; }
+    .principle { margin-top: 34px; padding: 22px; color: white; background: var(--green); border-radius: 22px; box-shadow: var(--shadow); display: grid; grid-template-columns: auto 1fr; gap: 16px; }
+    .principle strong { font-size: 28px; line-height: 1; }
+    main { padding-bottom: 80px; }
+    section { scroll-margin-top: 82px; margin-top: 34px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: clamp(25px, 4vw, 38px); letter-spacing: -.045em; }
+    h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.02em; }
+    p { margin: 0 0 12px; }
+    .sub { max-width: 620px; color: var(--muted); font-size: 14px; }
+    .card { border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: var(--shadow); padding: 22px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+    .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+    .card p, .card li { color: #526057; font-size: 14px; }
+    ul { margin: 10px 0 0; padding-left: 20px; }
+    li + li { margin-top: 6px; }
+    .number { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-bottom: 18px; border-radius: 9px; background: var(--green-2); color: var(--green); font-weight: 900; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
+    .flow-item { position: relative; min-height: 132px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 16px; }
+    .flow-item:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 48px; z-index: 2; color: var(--green); font-weight: 900; }
+    .flow-item b { display: block; margin-bottom: 6px; }
+    .flow-item small { color: var(--muted); line-height: 1.5; }
+    .badge { display: inline-block; margin-bottom: 8px; border-radius: 6px; padding: 3px 7px; background: #ece8dc; color: var(--green); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+    .badge.amber { color: #7a4a0f; background: #f5e4c9; }
+    .badge.blue { color: #23485f; background: #dce8ee; }
+    .badge.red { color: #7d3229; background: #f3dcd7; }
+    .rule { border-left: 4px solid var(--amber); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--card); }
+    table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 13px 15px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--green); background: #f8f5ec; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    code { border-radius: 6px; background: #eeeadd; padding: 2px 6px; color: #2d4738; font-family: "SFMono-Regular", Consolas, monospace; font-size: .9em; }
+    .timeline { display: grid; gap: 10px; }
+    .phase { display: grid; grid-template-columns: 92px 1fr auto; gap: 16px; align-items: start; border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 17px; }
+    .phase-id { font-weight: 900; color: var(--green); }
+    .phase small { color: var(--muted); }
+    .deliverable { color: var(--green); font-size: 12px; font-weight: 900; white-space: nowrap; }
+    .tests { columns: 2; column-gap: 26px; }
+    .tests li { break-inside: avoid; margin-bottom: 8px; }
+    .decision { display: flex; gap: 10px; align-items: flex-start; }
+    .decision i { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--green); margin-top: 7px; }
+    footer { border-top: 1px solid var(--line); padding: 28px 0 52px; color: var(--muted); font-size: 12px; }
+    .next { display: inline-block; margin-top: 14px; border-radius: 12px; padding: 11px 15px; background: var(--ink); color: white; text-decoration: none; font-weight: 900; }
+    @media (max-width: 820px) {
+      nav a:not(:last-child) { display: none; }
+      .hero { padding-top: 54px; }
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-item { min-height: 0; }
+      .flow-item:not(:last-child)::after { content: "↓"; right: 18px; top: auto; bottom: -16px; }
+      .phase { grid-template-columns: 72px 1fr; }
+      .deliverable { grid-column: 2; }
+      .tests { columns: 1; }
+    }
+    @media print {
+      .topbar { position: static; }
+      body { background: white; }
+      .card, .principle { box-shadow: none; }
+      section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <a class="brand" href="#top"><span class="mark" aria-hidden="true"></span> BLACK TURTLE</a>
+      <nav aria-label="문서 이동">
+        <a href="#architecture">구조</a>
+        <a href="#data">데이터</a>
+        <a href="#roadmap">로드맵</a>
+        <a href="SETUP.html">설정 체크리스트 →</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="shell" id="top">
+    <header class="hero">
+      <div class="eyebrow">Product &amp; Technical Plan · MVP 01</div>
+      <h1>느리게 갱신하고,<br>명확하게 판단한다.</h1>
+      <p class="lead">미국 주식 투자 판단에 필요한 FRED 매크로 지표와 선택한 X 계정의 기업 언급·감성을 하나의 모바일 대시보드에 저장해 보는 개인용 웹앱.</p>
+      <div class="hero-meta">
+        <span class="pill">Mobile first</span><span class="pill">Password protected</span><span class="pill">Next.js + Vercel</span><span class="pill">Supabase Postgres</span><span class="pill">FRED API</span><span class="pill">X API</span><span class="pill">Manual refresh only</span>
+      </div>
+      <div class="principle">
+        <strong>01</strong>
+        <div><b>제품의 가장 중요한 규칙</b><br>페이지를 열거나 새로고침하는 것만으로 외부 API를 호출하지 않는다. 화면은 항상 Supabase에 저장된 “마지막 성공 스냅샷”을 읽고, 사용자가 <b>데이터 갱신</b>을 눌렀을 때만 새 데이터를 수집한다.</div>
+      </div>
+    </header>
+
+    <main>
+      <section id="scope">
+        <div class="section-head"><h2>첫 버전의 범위</h2><p class="sub">지금 필요한 핵심 루프를 작게 완성하고, 이후 기능은 데이터 구조를 깨지 않고 덧붙인다.</p></div>
+        <div class="grid">
+          <article class="card span-4"><span class="number">1</span><h3>저장된 현황 보기</h3><p>마지막 갱신 시각, 매크로 카드, 기업별 언급량과 감성 분포, 원문 게시물 목록을 모바일에서 빠르게 확인한다.</p></article>
+          <article class="card span-4"><span class="number">2</span><h3>수동으로만 갱신</h3><p>버튼 한 번으로 FRED와 X를 수집·분석한다. 실행 중 중복 클릭은 막고, 실패하면 기존 스냅샷은 그대로 유지한다.</p></article>
+          <article class="card span-4"><span class="number">3</span><h3>처음에는 빈 화면</h3><p>성공 스냅샷이 0개면 가짜 수치를 만들지 않고 “아직 갱신된 데이터가 없습니다”와 첫 갱신 버튼을 보여준다.</p></article>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-head"><h2>동작 구조</h2><p class="sub">조회 경로와 갱신 경로를 분리하면 접속할 때 비용이 발생하지 않고, 실패에도 화면이 안정적이다.</p></div>
+        <div class="flow" aria-label="갱신 데이터 흐름">
+          <div class="flow-item"><span class="badge">Trigger</span><b>사용자 버튼</b><small>로그인된 사용자만 <code>POST /api/refresh</code> 실행</small></div>
+          <div class="flow-item"><span class="badge amber">Lock</span><b>갱신 잠금</b><small>이미 실행 중이면 새 작업을 만들지 않고 현재 상태 반환</small></div>
+          <div class="flow-item"><span class="badge blue">Collect</span><b>FRED + X</b><small>각 API에서 새 데이터 수집, X는 <code>since_id</code>로 증분 조회</small></div>
+          <div class="flow-item"><span class="badge">Analyze</span><b>기업·감성 분석</b><small>게시물별 기업을 식별하고 기업별 positive / neutral / negative 판정</small></div>
+          <div class="flow-item"><span class="badge red">Publish</span><b>원자적 공개</b><small>전 과정 성공 후에만 새 스냅샷을 현재 버전으로 전환</small></div>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <article class="card span-6"><h3>평상시 조회</h3><p>브라우저 → Next.js 서버 → <code>dashboard_state.published_snapshot_id</code> → 한 개의 읽기 최적화 JSON 스냅샷. 외부 API 호출 없음.</p></article>
+          <article class="card span-6 rule"><h3>실패 시 원칙</h3><p>후보 스냅샷을 만들다가 FRED, X, 분석 중 하나라도 실패하면 실행 기록만 <code>failed</code>로 남긴다. 기존 성공 스냅샷은 바꾸지 않고 오류와 재시도 버튼을 표시한다.</p></article>
+        </div>
+      </section>
+
+      <section id="screen">
+        <div class="section-head"><h2>모바일 화면 구성</h2><p class="sub">첫 화면에서 “언제 갱신됐는지, 시장 환경이 어떤지, 어떤 기업이 많이 언급됐는지”가 바로 보여야 한다.</p></div>
+        <div class="grid">
+          <article class="card span-4"><span class="badge">Header</span><h3>상태 바</h3><ul><li>Black Turtle 로고·로그아웃</li><li>마지막 성공 갱신 시각</li><li>갱신 버튼과 진행 단계</li><li>오류 발생 시 기존 데이터 유지 안내</li></ul></article>
+          <article class="card span-4"><span class="badge blue">Macro</span><h3>매크로 보드</h3><ul><li>현재값·전기 대비·업데이트일</li><li>금리 / 물가 / 고용 / 유동성 그룹</li><li>짧은 추이 스파크라인</li><li>FRED 시리즈 원문 링크</li></ul></article>
+          <article class="card span-4"><span class="badge amber">Signal</span><h3>X 인텔리전스</h3><ul><li>기업별 총 언급량 순위</li><li>긍정·중립·부정 카운트</li><li>계정·기간·감성 필터</li><li>근거 문장과 X 원문 링크</li></ul></article>
+          <article class="card span-12"><h3>빈 상태</h3><p>“아직 저장된 데이터가 없습니다. 첫 갱신은 계정 수와 게시물 양에 따라 시간이 걸릴 수 있습니다.”라는 설명과 하나의 명확한 <b>첫 데이터 갱신</b> 버튼만 제공한다.</p></article>
+        </div>
+      </section>
+
+      <section id="data">
+        <div class="section-head"><h2>데이터 모델</h2><p class="sub">원본·분석 결과·화면용 스냅샷을 분리해 재분석과 향후 기능 추가를 쉽게 한다.</p></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>테이블</th><th>핵심 역할</th><th>주요 필드 / 제약</th></tr></thead>
+            <tbody>
+              <tr><td><code>refresh_runs</code></td><td>갱신 실행 이력과 상태</td><td>status, started_at, finished_at, error_summary · active 실행은 전체에서 1개</td></tr>
+              <tr><td><code>dashboard_state</code></td><td>현재 공개 스냅샷 포인터</td><td><code>primary</code> 단일 행, published_snapshot_id · 성공 시 트랜잭션으로 교체</td></tr>
+              <tr><td><code>dashboard_snapshots</code></td><td>빠른 화면 조회용 결과</td><td>refresh_run_id, payload jsonb, created_at · 화면은 기본적으로 이 한 행을 읽음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <article class="card span-6"><h3>권장 FRED 시작 세트</h3><p><code>DGS2</code>, <code>DGS10</code>, <code>T10Y2Y</code>, <code>FEDFUNDS</code>, <code>CPIAUCSL</code>, <code>UNRATE</code>, <code>PAYEMS</code>, <code>M2SL</code>, <code>VIXCLS</code>. 실제 표시 단위와 갱신 주기가 서로 다르므로 지표별 최신 관측일도 함께 노출한다.</p></article>
+          <article class="card span-6"><h3>집계 기준</h3><p>한 게시물이 두 기업을 언급하면 두 기업에 각각 1회로 센다. 같은 게시물을 재수집해도 <code>x_post_id</code> 고유 제약으로 중복 집계하지 않는다. 전체 글이 아닌 <b>각 기업을 향한 문맥</b>으로 감성을 판정한다.</p></article>
+        </div>
+      </section>
+
+      <section id="analysis">
+        <div class="section-head"><h2>기업 식별과 감성 판정</h2><p class="sub">완전 자동 판정으로 시작하되 결과를 추적하고 나중에 다시 분석할 수 있어야 한다.</p></div>
+        <div class="grid">
+          <article class="card span-4"><span class="number">1</span><h3>후보 추출</h3><p><code>$NVDA</code> 같은 cashtag, 티커, 기업명, 제품명·대표명 alias를 회사 사전과 대조한다. 짧고 일반적인 티커(예: IT)는 cashtag 또는 강한 문맥이 없으면 제외한다.</p></article>
+          <article class="card span-4"><span class="number">2</span><h3>기업별 판정</h3><p>각 후보에 대해 <code>positive | neutral | negative</code>, 신뢰도, 짧은 근거를 구조화된 형식으로 반환한다. 불확실하면 neutral 또는 미분류로 둔다.</p></article>
+          <article class="card span-4"><span class="number">3</span><h3>버전·검수</h3><p>분석기와 프롬프트 버전을 저장한다. 낮은 신뢰도 결과를 모아 사전과 규칙을 보정하고, 향후 과거 게시물 재분석 기능을 추가한다.</p></article>
+          <article class="card span-12 rule"><h3>MVP 분석 엔진</h3><p>첫 구현은 추가 API 요금이 없는 cashtag/회사 alias 사전 + 한·영 감성 규칙을 사용한다. 판정 근거와 신뢰도를 함께 저장하며, 반어·비꼼·복합 문맥의 한계를 화면에 표시한다. 이후 구조화된 출력을 지원하는 LLM 분석기로 교체할 수 있게 분석 결과 형식은 그대로 유지한다.</p></article>
+        </div>
+      </section>
+
+      <section id="security">
+        <div class="section-head"><h2>보안·안정성 원칙</h2><p class="sub">배포 주소가 공개되어도 남이 데이터 갱신을 실행하거나 비밀키를 가져갈 수 없게 한다.</p></div>
+        <div class="grid">
+          <article class="card span-6"><h3>비밀번호 게이트</h3><p>최초 접속 시 <code>SITE_PASSWORD</code>를 확인한다. 성공하면 서버가 90일짜리 서명 쿠키를 발급하며, 비밀번호 원문은 브라우저 저장소나 쿠키에 넣지 않는다.</p></article>
+          <article class="card span-6"><h3>키는 서버에만</h3><p>FRED, X, Supabase secret 키와 사이트 비밀번호는 Vercel 환경 변수로만 저장한다. 이번 MVP는 브라우저에서 Supabase에 직접 접속하지 않는다.</p></article>
+          <article class="card span-6"><h3>RLS + 이중 서버 검증</h3><p>Supabase RLS를 모든 테이블에 켜고 public 정책을 만들지 않는다. 페이지 앞단의 <code>proxy.ts</code>와 갱신 Route Handler가 각각 서명 쿠키를 검증한다.</p></article>
+          <article class="card span-6"><h3>비용·장애 방어</h3><p>갱신 잠금, 계정별 최대 페이지 수, 전체 게시물 상한, API timeout/retry, 분석 batch 크기와 예산 상한을 둔다. 실패 로그에는 토큰·키·게시물 전문을 남기지 않는다.</p></article>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <div class="section-head"><h2>구현 로드맵</h2><p class="sub">각 단계마다 독립적으로 확인 가능한 결과물을 만든다. 예상 시간보다 완료 조건을 기준으로 진행한다.</p></div>
+        <div class="timeline">
+          <div class="phase"><div class="phase-id">Phase 0</div><div><h3>외부 설정</h3><small>대상 X 계정, 사이트 비밀번호, Supabase·Vercel·FRED/X API 키 준비.</small></div><div class="deliverable">사용자 작업</div></div>
+          <div class="phase"><div class="phase-id">Phase 1</div><div><h3>앱 기반과 인증</h3><small>Next.js App Router + TypeScript, 모바일 셸, 비밀번호 게이트, 서명된 HttpOnly 쿠키, DB migration과 RLS.</small></div><div class="deliverable">구현 완료</div></div>
+          <div class="phase"><div class="phase-id">Phase 2</div><div><h3>FRED 파이프라인</h3><small>시리즈 설정, 관측값 수집·upsert, 최신값/변화율/차트 데이터 생성, 오류 처리.</small></div><div class="deliverable">매크로 카드</div></div>
+          <div class="phase"><div class="phase-id">Phase 3</div><div><h3>X 수집 파이프라인</h3><small>username→user id 해석, 사용자 게시물 증분 수집, pagination, exclude 규칙, 중복 제거.</small></div><div class="deliverable">원문 피드</div></div>
+          <div class="phase"><div class="phase-id">Phase 4</div><div><h3>기업·감성 분석</h3><small>회사 사전, 후보 추출, 기업별 감성 판정, 신뢰도·근거·분석 버전 저장, 집계 쿼리.</small></div><div class="deliverable">기업 랭킹</div></div>
+          <div class="phase"><div class="phase-id">Phase 5</div><div><h3>수동 갱신 오케스트레이션</h3><small>인증된 POST, 중복 실행 잠금, 진행 상태, 원자적 스냅샷 공개, 실패 시 롤백과 재시도.</small></div><div class="deliverable">핵심 루프</div></div>
+          <div class="phase"><div class="phase-id">Phase 6</div><div><h3>모바일 QA와 운영</h3><small>360px부터 반응형 검증, 접근성, 로딩·오류·빈 상태, Vercel 배포, 비용·로그 점검.</small></div><div class="deliverable">MVP 완료</div></div>
+        </div>
+      </section>
+
+      <section id="acceptance">
+        <div class="section-head"><h2>완료 조건</h2><p class="sub">아래 조건을 통과하면 MVP의 핵심 동작이 완성된 것으로 본다.</p></div>
+        <article class="card">
+          <ul class="tests">
+            <li>데이터가 0건이면 빈 상태와 첫 갱신 버튼만 보인다.</li>
+            <li>페이지 접속·새로고침만으로 FRED/X/AI API가 호출되지 않는다.</li>
+            <li>갱신 성공 후 재접속해도 동일한 마지막 스냅샷이 보인다.</li>
+            <li>갱신 도중 기존 스냅샷이 사라지지 않는다.</li>
+            <li>API 하나가 실패하면 이전 스냅샷을 유지하고 오류를 보여준다.</li>
+            <li>갱신 버튼을 빠르게 두 번 눌러도 작업은 하나만 실행된다.</li>
+            <li>같은 X 게시물을 다시 받아도 언급량이 증가하지 않는다.</li>
+            <li>한 글의 서로 다른 기업 감성이 독립적으로 저장된다.</li>
+            <li>로그인하지 않은 사용자는 화면·갱신 API에 접근하지 못한다.</li>
+            <li>비밀번호 원문은 쿠키, localStorage, 브라우저 JavaScript에 저장되지 않는다.</li>
+            <li>로그인 성공 기기는 서명된 HttpOnly 쿠키로 90일 동안 기억된다.</li>
+            <li>브라우저 코드와 응답·로그에 secret key가 노출되지 않는다.</li>
+            <li>360px 화면에서 가로 스크롤 없이 핵심 카드와 버튼을 쓸 수 있다.</li>
+            <li>각 수치에 데이터 기준 시각 또는 관측일이 표시된다.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="later">
+        <div class="section-head"><h2>이후 확장 후보</h2><p class="sub">MVP에서는 만들지 않지만 현재 구조 위에 자연스럽게 추가할 수 있다.</p></div>
+        <div class="grid">
+          <article class="card span-4"><h3>포트폴리오</h3><p>보유 종목·평단·수익률, 기업별 매크로/X 신호 연결, 목표 비중과 리밸런싱 메모.</p></article>
+          <article class="card span-4"><h3>시장 데이터</h3><p>주가·실적·밸류에이션·어닝 캘린더, 관심 종목 워치리스트와 이벤트 타임라인.</p></article>
+          <article class="card span-4"><h3>리서치 기억</h3><p>투자 아이디어·체크리스트·매매일지, 과거 스냅샷 비교와 판단 회고.</p></article>
+        </div>
+        <a class="next" href="SETUP.html">내가 해야 할 설정 열기 →</a>
+      </section>
+    </main>
+  </div>
+
+  <footer><div class="shell">BLACK TURTLE · MVP 계획서 · 2026-07-20<br>이 문서는 구현 기준이며 API 요금제·제한은 실제 개발 시작 시 공식 문서에서 다시 확인한다.</div></footer>
+</body>
+</html>
