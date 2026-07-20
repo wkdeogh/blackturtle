@@ -32,58 +32,103 @@ async function getUser(username: string, token: string): Promise<{ id: string; u
 async function getPosts(
   user: { id: string; username: string },
   token: string,
+  lookbackDays: number,
+  postLimit: number | null,
   sinceId?: string,
 ): Promise<{ posts: Array<Omit<SocialPost, "mentions">>; newestPostId?: string }> {
-  const params = new URLSearchParams({
-    max_results: "100",
-    exclude: "replies,retweets",
-    "tweet.fields": "created_at,lang",
-  });
-  if (sinceId) {
-    params.set("since_id", sinceId);
-  } else {
-    params.set("start_time", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"));
-  }
+  const posts: Array<Omit<SocialPost, "mentions">> = [];
+  const seenTokens = new Set<string>();
+  let paginationToken: string | undefined;
+  let newestPostId: string | undefined = sinceId;
 
-  const response = await fetch(`https://api.x.com/2/users/${user.id}/tweets?${params}`, {
-    headers: authHeaders(token),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  const body = (await response.json()) as XPostsResponse;
-  if (!response.ok) {
-    throw new Error(`X @${user.username}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);
-  }
-  return {
-    newestPostId: body.meta?.newest_id ?? sinceId,
-    posts: (body.data ?? []).map((post) => ({
+  do {
+    const remaining = postLimit === null ? 100 : Math.max(0, postLimit - posts.length);
+    if (postLimit !== null && remaining === 0) break;
+    const params = new URLSearchParams({
+      max_results: String(Math.min(100, Math.max(5, remaining))),
+      exclude: "replies,retweets",
+      "tweet.fields": "created_at,lang",
+    });
+    if (sinceId) {
+      params.set("since_id", sinceId);
+    } else {
+      params.set("start_time", new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"));
+    }
+    if (paginationToken) params.set("pagination_token", paginationToken);
+
+    const response = await fetch(`https://api.x.com/2/users/${user.id}/tweets?${params}`, {
+      headers: authHeaders(token),
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = (await response.json()) as XPostsResponse;
+    if (!response.ok) {
+      throw new Error(`X @${user.username}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);
+    }
+    if (!paginationToken) newestPostId = body.meta?.newest_id ?? sinceId;
+    posts.push(...(body.data ?? []).map((post) => ({
       id: post.id,
       username: user.username,
       text: post.text,
       postedAt: post.created_at ?? new Date().toISOString(),
       lang: post.lang,
       url: `https://x.com/${user.username}/status/${post.id}`,
-    })),
+    })));
+
+    const nextToken = body.meta?.next_token;
+    if (!nextToken || seenTokens.has(nextToken)) break;
+    seenTokens.add(nextToken);
+    paginationToken = nextToken;
+  } while (postLimit === null || posts.length < postLimit);
+
+  return {
+    newestPostId,
+    posts: postLimit === null ? posts : posts.slice(0, postLimit),
   };
 }
 
 export async function collectXData(
   token: string,
   usernames: string[],
+  lookbackDays: number,
+  perAccountPostLimit: number | null,
+  totalPostLimit: number | null,
   previous?: DashboardSnapshot["social"],
 ): Promise<DashboardSnapshot["social"]> {
   const previousCursors = new Map(previous?.accounts.map((account) => [account.username.toLowerCase(), account]) ?? []);
-  const results = await Promise.all(
-    usernames.map(async (username) => {
-      const oldCursor = previousCursors.get(username.toLowerCase());
-      const user = oldCursor?.userId ? { id: oldCursor.userId, username } : await getUser(username, token);
-      const result = await getPosts(user, token, oldCursor?.newestPostId);
-      const cursor: XAccountCursor = { username, userId: user.id, newestPostId: result.newestPostId };
-      return { cursor, posts: result.posts };
-    }),
-  );
+  const results: Array<{ cursor: XAccountCursor; posts: Array<Omit<SocialPost, "mentions">> }> = [];
+  let remainingTotal = totalPostLimit;
 
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  for (const username of usernames) {
+    const oldCursor = previousCursors.get(username.toLowerCase());
+    if (remainingTotal !== null && remainingTotal <= 0) {
+      results.push({
+        cursor: { username, userId: oldCursor?.userId ?? "", newestPostId: oldCursor?.newestPostId },
+        posts: [],
+      });
+      continue;
+    }
+
+    const user = oldCursor?.userId ? { id: oldCursor.userId, username } : await getUser(username, token);
+    const canUseCursor = previous && previous.periodDays >= lookbackDays;
+    const effectiveLimit = perAccountPostLimit === null
+      ? remainingTotal
+      : remainingTotal === null
+        ? perAccountPostLimit
+        : Math.min(perAccountPostLimit, remainingTotal);
+    const result = await getPosts(
+      user,
+      token,
+      lookbackDays,
+      effectiveLimit,
+      canUseCursor ? oldCursor?.newestPostId : undefined,
+    );
+    const cursor: XAccountCursor = { username, userId: user.id, newestPostId: result.newestPostId };
+    results.push({ cursor, posts: result.posts });
+    if (remainingTotal !== null) remainingTotal -= result.posts.length;
+  }
+
+  const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
   const merged = new Map<string, Omit<SocialPost, "mentions">>();
   for (const post of previous?.posts ?? []) {
     if (new Date(post.postedAt).getTime() >= cutoff) {
@@ -94,13 +139,21 @@ export async function collectXData(
   }
   for (const result of results) for (const post of result.posts) merged.set(post.id, post);
 
+  const accountCounts = new Map<string, number>();
   const posts = [...merged.values()]
     .sort((left, right) => right.postedAt.localeCompare(left.postedAt))
-    .slice(0, 500)
+    .filter((post) => {
+      if (perAccountPostLimit === null) return true;
+      const count = accountCounts.get(post.username) ?? 0;
+      if (count >= perAccountPostLimit) return false;
+      accountCounts.set(post.username, count + 1);
+      return true;
+    })
+    .slice(0, totalPostLimit ?? undefined)
     .map(analyzePost);
 
   return {
-    periodDays: 7,
+    periodDays: lookbackDays,
     accounts: results.map((result) => result.cursor),
     posts,
     companies: aggregateMentions(posts),

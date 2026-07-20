@@ -153,7 +153,10 @@ SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 FRED_API_KEY=
 X_BEARER_TOKEN=
-X_TARGET_USERNAMES=     # @ 없이 쉼표로 구분, 최대 10개</code></pre>
+X_TARGET_USERNAMES=     # 선택: 003 migration 전 임시 fallback
+X_LOOKBACK_DAYS=7       # 선택: 기본 7일, 웹 설정이 우선
+X_PER_ACCOUNT_POST_LIMIT= # 선택: 비우면 무제한
+X_TOTAL_POST_LIMIT=       # 선택: 비우면 무제한</code></pre>
           <label class="check"><input type="checkbox" data-check><span><b>환경 변수 변경 후 재배포</b><span>Vercel 환경 변수 변경은 이미 만들어진 배포에 자동 반영되지 않으므로 새 배포를 실행합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>비밀번호 게이트 확인</b><span>배포 주소 첫 접속에서 비밀번호를 묻고, 성공 후 새로고침해도 로그인 상태가 유지되는지 확인합니다.</span></span></label>
           <div class="links"><a href="https://vercel.com/docs/environment-variables" target="_blank" rel="noreferrer">Vercel Environment Variables ↗</a><a href="https://vercel.com/docs/git/vercel-for-github" target="_blank" rel="noreferrer">Vercel for GitHub ↗</a></div>
@@ -168,6 +171,7 @@ X_TARGET_USERNAMES=     # @ 없이 쉼표로 구분, 최대 10개</code></pre>
           <label class="check"><input type="checkbox" data-check><span><b>첫 수동 갱신</b><span>버튼을 눌렀을 때만 외부 데이터가 들어오고 마지막 갱신 시각이 표시되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>재접속과 장애 복구</b><span>재접속해도 이전 데이터가 남고, 잘못된 테스트 키로 갱신 실패 시에도 기존 스냅샷이 유지되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>모바일 확인</b><span>실제 휴대폰에서 로그인, 스크롤, 필터, 갱신 버튼, X 원문 이동을 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>X 모니터링 설정 저장</b><span>대시보드에서 username, 수집 기간, 계정당·전체 게시물 상한을 저장한 뒤 다음 데이터 갱신에 반영되는지 확인합니다. 상한을 비우면 날짜 조건만 적용됩니다.</span></span></label>
         </div>
       </section>
 

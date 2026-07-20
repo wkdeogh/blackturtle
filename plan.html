@@ -185,6 +185,8 @@
               <tr><td><code>refresh_runs</code></td><td>갱신 실행 이력과 상태</td><td>status, started_at, finished_at, error_summary · active 실행은 전체에서 1개</td></tr>
               <tr><td><code>dashboard_state</code></td><td>현재 공개 스냅샷 포인터</td><td><code>primary</code> 단일 행, published_snapshot_id · 성공 시 트랜잭션으로 교체</td></tr>
               <tr><td><code>dashboard_snapshots</code></td><td>빠른 화면 조회용 결과</td><td>refresh_run_id, payload jsonb, created_at · 화면은 기본적으로 이 한 행을 읽음</td></tr>
+              <tr><td><code>x_monitored_accounts</code></td><td>웹에서 관리하는 수집 대상</td><td>username PK, created_at · 최대 10개, 다음 수동 갱신부터 적용</td></tr>
+              <tr><td><code>x_monitor_settings</code></td><td>X 수집 범위 설정</td><td>lookback_days, per_account_post_limit, total_post_limit · 상한 null이면 날짜 조건만 적용</td></tr>
             </tbody>
           </table>
         </div>

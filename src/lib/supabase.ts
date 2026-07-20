@@ -47,13 +47,80 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
   };
 }
 
+export interface XMonitorSettingsResult {
+  usernames: string[];
+  lookbackDays: number;
+  perAccountPostLimit: number | null;
+  totalPostLimit: number | null;
+  source: "database" | "environment" | "none";
+}
+
+function optionalPositiveInteger(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function environmentAccounts(): string[] {
+  return (process.env.X_TARGET_USERNAMES ?? "")
+    .split(",")
+    .map((username) => username.trim().replace(/^@/, "").toLowerCase())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function environmentLookbackDays(): number {
+  const parsed = Number(process.env.X_LOOKBACK_DAYS ?? 7);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 30 ? parsed : 7;
+}
+
+export async function getXMonitorSettings(): Promise<XMonitorSettingsResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return {
+      usernames: environmentAccounts(),
+      lookbackDays: environmentLookbackDays(),
+      perAccountPostLimit: optionalPositiveInteger(process.env.X_PER_ACCOUNT_POST_LIMIT),
+      totalPostLimit: optionalPositiveInteger(process.env.X_TOTAL_POST_LIMIT),
+      source: process.env.X_TARGET_USERNAMES ? "environment" : "none",
+    };
+  }
+
+  const [accountsResult, settingsResult] = await Promise.all([
+    supabase.from("x_monitored_accounts").select("username").order("position"),
+    supabase.from("x_monitor_settings").select("lookback_days, per_account_post_limit, total_post_limit").eq("id", "primary").maybeSingle(),
+  ]);
+
+  const error = accountsResult.error ?? settingsResult.error;
+  if (error) {
+    if (error.code === "42P01") {
+      const fallback = environmentAccounts();
+      return {
+        usernames: fallback,
+        lookbackDays: environmentLookbackDays(),
+        perAccountPostLimit: optionalPositiveInteger(process.env.X_PER_ACCOUNT_POST_LIMIT),
+        totalPostLimit: optionalPositiveInteger(process.env.X_TOTAL_POST_LIMIT),
+        source: fallback.length ? "environment" : "none",
+      };
+    }
+    throw new Error(`X 모니터링 설정 조회 실패: ${error.message}`);
+  }
+
+  return {
+    usernames: (accountsResult.data ?? []).map((row) => row.username as string),
+    lookbackDays: (settingsResult.data?.lookback_days as number | undefined) ?? 7,
+    perAccountPostLimit: (settingsResult.data?.per_account_post_limit as number | null | undefined) ?? null,
+    totalPostLimit: (settingsResult.data?.total_post_limit as number | null | undefined) ?? null,
+    source: "database",
+  };
+}
+
 export function getMissingConfiguration(): string[] {
   const required: Array<[string, string | undefined]> = [
     ["SUPABASE_URL", process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL],
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
     ["FRED_API_KEY", process.env.FRED_API_KEY],
     ["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN],
-    ["X_TARGET_USERNAMES", process.env.X_TARGET_USERNAMES],
   ];
   return required.filter(([, value]) => !value).map(([name]) => name);
 }

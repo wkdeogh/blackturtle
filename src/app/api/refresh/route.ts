@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { collectFredData } from "@/lib/fred";
 import { isSameOriginPost } from "@/lib/session";
-import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
+import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import type { DashboardSnapshot } from "@/lib/types";
 import { collectXData } from "@/lib/x-api";
 
@@ -38,15 +38,19 @@ export async function POST(request: Request) {
 
   try {
     const previous = await getLatestSnapshot();
-    const usernames = process.env.X_TARGET_USERNAMES!.split(",")
-      .map((username) => username.trim().replace(/^@/, ""))
-      .filter(Boolean)
-      .slice(0, 10);
-    if (!usernames.length) throw new Error("X_TARGET_USERNAMES에 수집할 계정을 한 개 이상 입력하세요.");
+    const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
+    if (!usernames.length) throw new Error("대시보드에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
 
     const [macro, social] = await Promise.all([
       collectFredData(process.env.FRED_API_KEY!),
-      collectXData(process.env.X_BEARER_TOKEN!, usernames, previous?.payload.social),
+      collectXData(
+        process.env.X_BEARER_TOKEN!,
+        usernames,
+        lookbackDays,
+        perAccountPostLimit,
+        totalPostLimit,
+        previous?.payload.social,
+      ),
     ]);
 
     const snapshot: DashboardSnapshot = {

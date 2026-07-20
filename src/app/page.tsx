@@ -1,6 +1,7 @@
 import { MacroCard } from "@/components/macro-card";
 import { LogoutButton, RefreshButton } from "@/components/dashboard-actions";
-import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
+import { XAccountSettings } from "@/components/x-account-settings";
+import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import type { MentionSummary, SocialPost } from "@/lib/types";
 import Link from "next/link";
 
@@ -56,8 +57,15 @@ function PostCard({ post }: { post: SocialPost }) {
 export default async function DashboardPage() {
   let snapshot = null;
   let databaseError = "";
+  let monitorSettings: Awaited<ReturnType<typeof getXMonitorSettings>> = {
+    usernames: [],
+    lookbackDays: 7,
+    perAccountPostLimit: null,
+    totalPostLimit: null,
+    source: "none",
+  };
   try {
-    snapshot = await getLatestSnapshot();
+    [snapshot, monitorSettings] = await Promise.all([getLatestSnapshot(), getXMonitorSettings()]);
   } catch (error) {
     databaseError = error instanceof Error ? error.message : "데이터베이스에 연결하지 못했습니다.";
   }
@@ -94,6 +102,14 @@ export default async function DashboardPage() {
             <p className="setup-help">저장소의 <code>SETUP.html</code>과 <code>.env.example</code> 순서대로 설정하면 됩니다.</p>
           </aside>
         ) : null}
+
+        <XAccountSettings
+          initialAccounts={monitorSettings.usernames}
+          initialLookbackDays={monitorSettings.lookbackDays}
+          initialPerAccountPostLimit={monitorSettings.perAccountPostLimit}
+          initialTotalPostLimit={monitorSettings.totalPostLimit}
+          source={monitorSettings.source}
+        />
 
         {!snapshot ? (
           <section className="empty-state">
