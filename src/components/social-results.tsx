@@ -1,5 +1,39 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import type { MentionSummary, SocialPost } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
+
+interface SocialResultsData {
+  analysisModel?: string;
+  periodDays: number;
+  accounts: Array<{ username: string }>;
+  posts: SocialPost[];
+  companies: MentionSummary[];
+  analyzedPostCount: number;
+}
+
+function aggregateCompanies(posts: SocialPost[]): MentionSummary[] {
+  const summary = new Map<string, MentionSummary>();
+  for (const post of posts) {
+    for (const mention of post.mentions) {
+      const current = summary.get(mention.ticker) ?? {
+        ticker: mention.ticker,
+        name: mention.name,
+        total: 0,
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        lastMentionAt: post.postedAt,
+      };
+      current.total += 1;
+      current[mention.sentiment] += 1;
+      if (post.postedAt > current.lastMentionAt) current.lastMentionAt = post.postedAt;
+      summary.set(mention.ticker, current);
+    }
+  }
+  return [...summary.values()].sort((left, right) => right.total - left.total || right.positive - left.positive);
+}
 
 function CompanyRow({ company, rank }: { company: MentionSummary; rank: number }) {
   const positiveWidth = company.total ? (company.positive / company.total) * 100 : 0;
@@ -36,18 +70,37 @@ function PostCard({ post }: { post: SocialPost }) {
   );
 }
 
-export function SocialResults({ social, expanded = false }: { social: { analysisModel?: string; periodDays: number; accounts: unknown[]; posts: SocialPost[]; companies: MentionSummary[]; analyzedPostCount: number }; expanded?: boolean }) {
-  const companies = expanded ? social.companies : social.companies.slice(0, 12);
-  const posts = expanded ? social.posts : social.posts.slice(0, 12);
+export function SocialResults({ social, expanded = false }: { social: SocialResultsData; expanded?: boolean }) {
+  const [selectedAccount, setSelectedAccount] = useState("all");
+  const accountNames = useMemo(() => {
+    const names = new Set(social.accounts.map((account) => account.username.toLowerCase()));
+    for (const post of social.posts) names.add(post.username.toLowerCase());
+    return [...names].sort((left, right) => left.localeCompare(right));
+  }, [social.accounts, social.posts]);
+  const filteredPosts = useMemo(
+    () => selectedAccount === "all" ? social.posts : social.posts.filter((post) => post.username.toLowerCase() === selectedAccount),
+    [selectedAccount, social.posts],
+  );
+  const filteredCompanies = useMemo(
+    () => selectedAccount === "all" ? social.companies : aggregateCompanies(filteredPosts),
+    [filteredPosts, selectedAccount, social.companies],
+  );
+  const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
+  const posts = expanded ? filteredPosts : filteredPosts.slice(0, 12);
+  const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
   return (
     <>
+      <section className="result-filter" aria-label="X 결과 계정 필터">
+        <div><span>ACCOUNT VIEW</span><strong>{accountLabel}</strong><small>기업 언급과 게시물을 같은 계정 기준으로 필터링합니다.</small></div>
+        <label htmlFor="social-account-filter">계정 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((username) => <option value={username} key={username}>@{username}</option>)}</select></label>
+      </section>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>최근 {social.periodDays}일 · {social.accounts.length}개 계정 · {social.analyzedPostCount}개 게시물</p></div>
+        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · {filteredPosts.length}개 게시물</p></div>
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
             {companies.map((company, index) => <CompanyRow company={company} rank={index + 1} key={company.ticker} />)}
-            {!social.companies.length ? <p className="board-empty">수집된 게시물에서 기업 언급을 찾지 못했습니다.</p> : null}
+            {!filteredCompanies.length ? <p className="board-empty">선택한 계정의 게시물에서 기업 언급을 찾지 못했습니다.</p> : null}
           </div>
           <aside className="signal-note">
             <span className="note-index">NOTE 01</span><h3>카운트 해석법</h3>
@@ -58,9 +111,9 @@ export function SocialResults({ social, expanded = false }: { social: { analysis
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">02 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>최신순 · reply와 repost 제외</p></div>
+        <div className="section-title"><div><p className="kicker">02 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{accountLabel} · 최신순 · reply와 repost 제외</p></div>
         <div className="post-grid">{posts.map((post) => <PostCard post={post} key={post.id} />)}</div>
-        {!social.posts.length ? <div className="inline-empty">아직 수집된 X 게시물이 없습니다.</div> : null}
+        {!filteredPosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>
   );

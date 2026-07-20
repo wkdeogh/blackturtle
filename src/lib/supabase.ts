@@ -168,11 +168,18 @@ export async function getHistorySettings(): Promise<HistorySettingsResult> {
 }
 
 export interface XMonitorSettingsResult {
+  accounts: XMonitorAccountSetting[];
   usernames: string[];
   lookbackDays: number;
   perAccountPostLimit: number | null;
   totalPostLimit: number | null;
   source: "database" | "environment" | "none";
+  accountStatusReady: boolean;
+}
+
+export interface XMonitorAccountSetting {
+  username: string;
+  enabled: boolean;
 }
 
 function optionalPositiveInteger(value: string | undefined): number | null {
@@ -197,41 +204,56 @@ function environmentLookbackDays(): number {
 export async function getXMonitorSettings(): Promise<XMonitorSettingsResult> {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
+    const usernames = environmentAccounts();
     return {
-      usernames: environmentAccounts(),
+      accounts: usernames.map((username) => ({ username, enabled: true })),
+      usernames,
       lookbackDays: environmentLookbackDays(),
       perAccountPostLimit: optionalPositiveInteger(process.env.X_PER_ACCOUNT_POST_LIMIT),
       totalPostLimit: optionalPositiveInteger(process.env.X_TOTAL_POST_LIMIT),
       source: process.env.X_TARGET_USERNAMES ? "environment" : "none",
+      accountStatusReady: false,
     };
   }
 
-  const [accountsResult, settingsResult] = await Promise.all([
-    supabase.from("x_monitored_accounts").select("username").order("position"),
+  const [fullAccountsResult, settingsResult] = await Promise.all([
+    supabase.from("x_monitored_accounts").select("username, enabled").order("position"),
     supabase.from("x_monitor_settings").select("lookback_days, per_account_post_limit, total_post_limit").eq("id", "primary").maybeSingle(),
   ]);
 
-  const error = accountsResult.error ?? settingsResult.error;
+  const statusColumnMissing = fullAccountsResult.error?.code === "42703" || fullAccountsResult.error?.code === "PGRST204";
+  const legacyAccountsResult = statusColumnMissing
+    ? await supabase.from("x_monitored_accounts").select("username").order("position")
+    : null;
+  const accountsError = statusColumnMissing ? legacyAccountsResult?.error : fullAccountsResult.error;
+  const error = accountsError ?? settingsResult.error;
   if (error) {
     if (error.code === "42P01") {
       const fallback = environmentAccounts();
       return {
+        accounts: fallback.map((username) => ({ username, enabled: true })),
         usernames: fallback,
         lookbackDays: environmentLookbackDays(),
         perAccountPostLimit: optionalPositiveInteger(process.env.X_PER_ACCOUNT_POST_LIMIT),
         totalPostLimit: optionalPositiveInteger(process.env.X_TOTAL_POST_LIMIT),
         source: fallback.length ? "environment" : "none",
+        accountStatusReady: false,
       };
     }
     throw new Error(`X 모니터링 설정 조회 실패: ${error.message}`);
   }
 
+  const accounts: XMonitorAccountSetting[] = statusColumnMissing
+    ? (legacyAccountsResult?.data ?? []).map((row) => ({ username: row.username as string, enabled: true }))
+    : (fullAccountsResult.data ?? []).map((row) => ({ username: row.username as string, enabled: row.enabled as boolean }));
   return {
-    usernames: (accountsResult.data ?? []).map((row) => row.username as string),
+    accounts,
+    usernames: accounts.filter((account) => account.enabled).map((account) => account.username),
     lookbackDays: (settingsResult.data?.lookback_days as number | undefined) ?? 7,
     perAccountPostLimit: (settingsResult.data?.per_account_post_limit as number | null | undefined) ?? null,
     totalPostLimit: (settingsResult.data?.total_post_limit as number | null | undefined) ?? null,
     source: "database",
+    accountStatusReady: !statusColumnMissing,
   };
 }
 

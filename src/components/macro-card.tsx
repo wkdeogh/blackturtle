@@ -27,7 +27,7 @@ export function MacroCard({ series }: { series: MacroSeries }) {
         {points.map((point) => (
           <div className="chart-point" key={point.date} title={`${point.date}: ${point.value}`}>
             <span className="chart-bar-wrap"><i style={{ height: `${18 + ((point.value - min) / range) * 82}%` }} /></span>
-            <time dateTime={point.date}>{point.date.slice(2).replaceAll("-", ".")}</time>
+            <time dateTime={point.date}>{point.date.slice(5).replace("-", ".")}</time>
           </div>
         ))}
       </div>

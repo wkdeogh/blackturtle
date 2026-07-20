@@ -3,17 +3,25 @@ import { isAuthenticated } from "@/lib/auth";
 import { isSameOriginPost } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-function normalizeAccounts(values: unknown): string[] | null {
+interface AccountInput {
+  username: string;
+  enabled: boolean;
+}
+
+function normalizeAccounts(values: unknown): AccountInput[] | null {
   if (!Array.isArray(values)) return null;
-  const usernames = [...new Set(
-    values
-      .filter((value): value is string => typeof value === "string")
-      .map((value) => value.trim().replace(/^@/, "").toLowerCase())
-      .filter(Boolean),
-  )];
-  if (usernames.length > 10) return null;
-  if (usernames.some((username) => !/^[a-z0-9_]{1,30}$/.test(username))) return null;
-  return usernames;
+  const accounts = values.map((value): AccountInput | null => {
+    if (!value || typeof value !== "object") return null;
+    const raw = value as Record<string, unknown>;
+    if (typeof raw.username !== "string" || typeof raw.enabled !== "boolean") return null;
+    return { username: raw.username.trim().replace(/^@/, "").toLowerCase(), enabled: raw.enabled };
+  });
+  if (accounts.some((account) => account === null)) return null;
+  const normalized = accounts as AccountInput[];
+  if (normalized.length > 10) return null;
+  if (normalized.some(({ username }) => !/^[a-z0-9_]{1,30}$/.test(username))) return null;
+  if (new Set(normalized.map(({ username }) => username)).size !== normalized.length) return null;
+  return normalized;
 }
 
 export async function POST(request: Request) {
@@ -26,14 +34,14 @@ export async function POST(request: Request) {
 
   let values: unknown;
   try {
-    const body = (await request.json()) as { usernames?: unknown };
-    values = body.usernames;
+    const body = (await request.json()) as { accounts?: unknown };
+    values = body.accounts;
   } catch {
     return NextResponse.json({ error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-  const usernames = normalizeAccounts(values);
-  if (!usernames) {
+  const accounts = normalizeAccounts(values);
+  if (!accounts) {
     return NextResponse.json({ error: "계정은 최대 10개이며 영문, 숫자, 밑줄만 사용할 수 있습니다." }, { status: 400 });
   }
 
@@ -42,23 +50,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase 연결이 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const { error } = await supabase.rpc("replace_x_monitored_accounts", {
-    p_usernames: usernames,
+  const { error } = await supabase.rpc("replace_x_monitored_accounts_v2", {
+    p_usernames: accounts.map(({ username }) => username),
+    p_enabled: accounts.map(({ enabled }) => enabled),
   });
   if (error) {
-    const migrationMissing = error.message.includes("replace_x_monitored_accounts") || error.code === "PGRST202";
-    const safeDeleteBlocked = error.message.includes("DELETE requires a WHERE clause");
+    const migrationMissing = error.message.includes("replace_x_monitored_accounts_v2") || error.code === "PGRST202";
     return NextResponse.json(
       {
         error: migrationMissing
-          ? "Supabase에서 202607200004_split_x_settings.sql을 먼저 실행하세요."
-          : safeDeleteBlocked
-            ? "Supabase에서 202607200005_fix_x_account_replace.sql을 실행하세요."
-            : `계정 저장 실패: ${error.message}`,
+          ? "Supabase에서 202607210008_x_account_enabled.sql을 먼저 실행하세요."
+          : `계정 저장 실패: ${error.message}`,
       },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ ok: true, usernames });
+  return NextResponse.json({ ok: true, accounts });
 }
