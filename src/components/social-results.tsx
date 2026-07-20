@@ -42,7 +42,7 @@ export function SocialResults({ social, expanded = false }: { social: { analysis
   return (
     <>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급과 감성</h2></div><p>최근 {social.periodDays}일 · {social.accounts.length}개 계정 · {social.analyzedPostCount}개 게시물</p></div>
+        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>최근 {social.periodDays}일 · {social.accounts.length}개 계정 · {social.analyzedPostCount}개 게시물</p></div>
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
