@@ -1,4 +1,5 @@
 import type { CompanyMention, MentionSummary, Sentiment, SocialPost } from "@/lib/types";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 type RawPost = Omit<SocialPost, "mentions">;
 
@@ -112,7 +113,7 @@ function normalizeMention(value: NonNullable<NonNullable<AnalysisPayload["analys
 }
 
 async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Promise<Map<string, CompanyMention[]>> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -134,8 +135,7 @@ async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Pr
       },
     }),
     cache: "no-store",
-    signal: AbortSignal.timeout(90_000),
-  });
+  }, 240_000, `OpenAI ${model} 분석`);
 
   const body = (await response.json()) as OpenAIResponse;
   if (!response.ok) {

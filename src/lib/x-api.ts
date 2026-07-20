@@ -1,4 +1,5 @@
 import { aggregateMentions, analyzePostsWithOpenAI } from "@/lib/social-analysis";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import type { DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
 
 interface XUserResponse {
@@ -17,11 +18,10 @@ function authHeaders(token: string): HeadersInit {
 }
 
 async function getUser(username: string, token: string): Promise<{ id: string; username: string }> {
-  const response = await fetch(`https://api.x.com/2/users/by/username/${encodeURIComponent(username)}`, {
+  const response = await fetchWithTimeout(`https://api.x.com/2/users/by/username/${encodeURIComponent(username)}`, {
     headers: authHeaders(token),
     cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
+  }, 30_000, `X @${username} 계정 조회`);
   const body = (await response.json()) as XUserResponse;
   if (!response.ok || !body.data) {
     throw new Error(`X @${username}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);
@@ -56,11 +56,10 @@ async function getPosts(
     }
     if (paginationToken) params.set("pagination_token", paginationToken);
 
-    const response = await fetch(`https://api.x.com/2/users/${user.id}/tweets?${params}`, {
+    const response = await fetchWithTimeout(`https://api.x.com/2/users/${user.id}/tweets?${params}`, {
       headers: authHeaders(token),
       cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
-    });
+    }, 45_000, `X @${user.username} 게시물 조회`);
     const body = (await response.json()) as XPostsResponse;
     if (!response.ok) {
       throw new Error(`X @${user.username}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);

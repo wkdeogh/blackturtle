@@ -1,4 +1,5 @@
 import type { MacroSeries } from "@/lib/types";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 interface FredDefinition {
   id: string;
@@ -39,10 +40,9 @@ async function fetchSeries(definition: FredDefinition, apiKey: string): Promise<
     sort_order: "desc",
     limit: "24",
   });
-  const response = await fetch(`https://api.stlouisfed.org/fred/series/observations?${params}`, {
+  const response = await fetchWithTimeout(`https://api.stlouisfed.org/fred/series/observations?${params}`, {
     cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
+  }, 30_000, `FRED ${definition.id}`);
   const body = (await response.json()) as FredResponse;
   if (!response.ok || body.error_message) {
     throw new Error(`FRED ${definition.id}: ${body.error_message ?? response.statusText}`);
