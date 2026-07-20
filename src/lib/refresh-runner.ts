@@ -5,6 +5,24 @@ import { collectXData } from "@/lib/x-api";
 
 export function refreshErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message.slice(0, 600);
+  if (typeof error === "string" && error.trim()) return error.trim().slice(0, 600);
+
+  // Workflow 단계의 오류는 실행 경계를 통과하면서 일반 객체로 직렬화될 수 있다.
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    if (typeof value.message === "string" && value.message.trim()) {
+      return value.message.trim().slice(0, 600);
+    }
+    if (value.cause && typeof value.cause === "object") {
+      const cause = value.cause as Record<string, unknown>;
+      if (typeof cause.message === "string" && cause.message.trim()) {
+        return cause.message.trim().slice(0, 600);
+      }
+    }
+  }
+
+  const rendered = String(error);
+  if (rendered && rendered !== "[object Object]") return rendered.slice(0, 600);
   return "알 수 없는 갱신 오류가 발생했습니다.";
 }
 

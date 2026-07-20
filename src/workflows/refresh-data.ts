@@ -43,13 +43,16 @@ async function recoverDraftOrFail(runId: string, message: string): Promise<boole
 
 export async function refreshDataWorkflow(runId: string, source: RefreshSource) {
   "use workflow";
+  let stage = "갱신 준비";
   try {
     await setRefreshStage(runId, "collecting");
+    stage = source === "macro" ? "FRED 수집" : "X/OpenAI 수집";
     const generatedAt = await collectAndStoreDraft(runId, source);
+    stage = "스냅샷 저장";
     await publishRefresh(runId);
     return { ok: true, generatedAt };
   } catch (error) {
-    const message = refreshErrorMessage(error);
+    const message = `${stage}: ${refreshErrorMessage(error)}`;
     const recovered = await recoverDraftOrFail(runId, message);
     return recovered ? { ok: true, recovered: true } : { ok: false, error: message };
   }
