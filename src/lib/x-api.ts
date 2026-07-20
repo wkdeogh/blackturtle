@@ -1,6 +1,17 @@
-import { aggregateMentions, analyzePostsWithOpenAI } from "@/lib/social-analysis";
+import { aggregateMentions, analyzePostsWithOpenAI, type PostAnalysisResult } from "@/lib/social-analysis";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-import type { DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
+import type { CompanyMention, DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
+
+export type RawSocialPost = Omit<SocialPost, "mentions">;
+
+export interface PreparedXCollection {
+  analysisModel: string;
+  periodDays: number;
+  accounts: XAccountCursor[];
+  rawPosts: RawSocialPost[];
+  postsToAnalyze: RawSocialPost[];
+  reusedAnalysis: PostAnalysisResult[];
+}
 
 interface XUserResponse {
   data?: { id: string; username: string };
@@ -35,8 +46,8 @@ async function getPosts(
   lookbackDays: number,
   postLimit: number | null,
   sinceId?: string,
-): Promise<{ posts: Array<Omit<SocialPost, "mentions">>; newestPostId?: string }> {
-  const posts: Array<Omit<SocialPost, "mentions">> = [];
+): Promise<{ posts: RawSocialPost[]; newestPostId?: string }> {
+  const posts: RawSocialPost[] = [];
   const seenTokens = new Set<string>();
   let paginationToken: string | undefined;
   let newestPostId: string | undefined = sinceId;
@@ -86,18 +97,17 @@ async function getPosts(
   };
 }
 
-export async function collectXData(
+export async function prepareXCollection(
   token: string,
   usernames: string[],
   lookbackDays: number,
   perAccountPostLimit: number | null,
   totalPostLimit: number | null,
-  openAIApiKey: string,
   analysisModel: string,
   previous?: DashboardSnapshot["social"],
-): Promise<DashboardSnapshot["social"]> {
+): Promise<PreparedXCollection> {
   const previousCursors = new Map(previous?.accounts.map((account) => [account.username.toLowerCase(), account]) ?? []);
-  const results: Array<{ cursor: XAccountCursor; posts: Array<Omit<SocialPost, "mentions">> }> = [];
+  const results: Array<{ cursor: XAccountCursor; posts: RawSocialPost[] }> = [];
   let remainingTotal = totalPostLimit;
 
   for (const username of usernames) {
@@ -130,7 +140,7 @@ export async function collectXData(
   }
 
   const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
-  const merged = new Map<string, Omit<SocialPost, "mentions">>();
+  const merged = new Map<string, RawSocialPost>();
   for (const post of previous?.posts ?? []) {
     if (new Date(post.postedAt).getTime() >= cutoff) {
       const { mentions: _mentions, ...raw } = post;
@@ -155,19 +165,63 @@ export async function collectXData(
   const canReusePreviousAnalysis = previous?.analysisModel === analysisModel;
   const previousPosts = new Map((canReusePreviousAnalysis ? previous?.posts : [])?.map((post) => [post.id, post]) ?? []);
   const postsToAnalyze = rawPosts.filter((post) => !previousPosts.has(post.id));
-  const newAnalysis = await analyzePostsWithOpenAI(postsToAnalyze, openAIApiKey, analysisModel);
-  const posts = rawPosts.map((post): SocialPost => {
-    const previousPost = previousPosts.get(post.id);
-    if (previousPost) return { ...post, mentions: previousPost.mentions };
-    return { ...post, mentions: newAnalysis.get(post.id) ?? [] };
-  });
-
   return {
     analysisModel,
     periodDays: lookbackDays,
     accounts: results.map((result) => result.cursor),
+    rawPosts,
+    postsToAnalyze,
+    reusedAnalysis: rawPosts.flatMap((post) => {
+      const previousPost = previousPosts.get(post.id);
+      return previousPost ? [{ id: post.id, mentions: previousPost.mentions }] : [];
+    }),
+  };
+}
+
+export function finalizeXCollection(
+  prepared: PreparedXCollection,
+  newAnalysis: PostAnalysisResult[],
+): DashboardSnapshot["social"] {
+  const analyses = new Map<string, CompanyMention[]>();
+  for (const { id, mentions } of prepared.reusedAnalysis) analyses.set(id, mentions);
+  for (const { id, mentions } of newAnalysis) analyses.set(id, mentions);
+
+  const posts = prepared.rawPosts.map((post): SocialPost => ({
+    ...post,
+    mentions: analyses.get(post.id) ?? [],
+  }));
+  return {
+    analysisModel: prepared.analysisModel,
+    periodDays: prepared.periodDays,
+    accounts: prepared.accounts,
     posts,
     companies: aggregateMentions(posts),
     analyzedPostCount: posts.length,
   };
+}
+
+export async function collectXData(
+  token: string,
+  usernames: string[],
+  lookbackDays: number,
+  perAccountPostLimit: number | null,
+  totalPostLimit: number | null,
+  openAIApiKey: string,
+  analysisModel: string,
+  previous?: DashboardSnapshot["social"],
+): Promise<DashboardSnapshot["social"]> {
+  const prepared = await prepareXCollection(
+    token,
+    usernames,
+    lookbackDays,
+    perAccountPostLimit,
+    totalPostLimit,
+    analysisModel,
+    previous,
+  );
+  const analysis = await analyzePostsWithOpenAI(prepared.postsToAnalyze, openAIApiKey, analysisModel);
+  return finalizeXCollection(
+    prepared,
+    [...analysis].map(([id, mentions]) => ({ id, mentions })),
+  );
 }

@@ -3,6 +3,11 @@ import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 type RawPost = Omit<SocialPost, "mentions">;
 
+export interface PostAnalysisResult {
+  id: string;
+  mentions: CompanyMention[];
+}
+
 interface OpenAIResponse {
   output_text?: string;
   output?: Array<{
@@ -26,7 +31,7 @@ interface AnalysisPayload {
   }>;
 }
 
-const BATCH_SIZE = 40;
+export const OPENAI_BATCH_SIZE = 20;
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -170,11 +175,20 @@ async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Pr
   return result;
 }
 
+export async function analyzePostBatchWithOpenAI(
+  posts: RawPost[],
+  apiKey: string,
+  model: string,
+): Promise<PostAnalysisResult[]> {
+  const analysis = await analyzeBatch(posts, apiKey, model);
+  return [...analysis].map(([id, mentions]) => ({ id, mentions }));
+}
+
 export async function analyzePostsWithOpenAI(posts: RawPost[], apiKey: string, model: string): Promise<Map<string, CompanyMention[]>> {
   const result = new Map<string, CompanyMention[]>();
-  for (let index = 0; index < posts.length; index += BATCH_SIZE) {
-    const batch = await analyzeBatch(posts.slice(index, index + BATCH_SIZE), apiKey, model);
-    for (const [id, mentions] of batch) result.set(id, mentions);
+  for (let index = 0; index < posts.length; index += OPENAI_BATCH_SIZE) {
+    const batch = await analyzePostBatchWithOpenAI(posts.slice(index, index + OPENAI_BATCH_SIZE), apiKey, model);
+    for (const { id, mentions } of batch) result.set(id, mentions);
   }
   return result;
 }
