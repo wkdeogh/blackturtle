@@ -19,7 +19,7 @@ npm run dev
 ```
 
 `.env.local`의 값을 채운 후 Supabase SQL Editor에서
-`supabase/migrations/202607200001_initial.sql`을 실행합니다.
+`supabase/migrations` 폴더의 SQL 파일을 번호 순서대로 실행합니다.
 
 ## 검증
 

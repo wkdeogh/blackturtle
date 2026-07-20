@@ -37,6 +37,14 @@ revoke all on public.refresh_runs from anon, authenticated;
 revoke all on public.dashboard_snapshots from anon, authenticated;
 revoke all on public.dashboard_state from anon, authenticated;
 
+-- Projects created with "Automatically expose new tables" disabled do not
+-- grant table access automatically. Keep browser roles blocked while allowing
+-- the server-only secret key to read the published snapshot.
+grant usage on schema public to service_role;
+grant select on public.refresh_runs to service_role;
+grant select on public.dashboard_snapshots to service_role;
+grant select on public.dashboard_state to service_role;
+
 create or replace function public.start_refresh()
 returns uuid
 language plpgsql
