@@ -47,8 +47,15 @@ export async function POST(request: Request) {
   });
   if (error) {
     const migrationMissing = error.message.includes("replace_x_monitored_accounts") || error.code === "PGRST202";
+    const safeDeleteBlocked = error.message.includes("DELETE requires a WHERE clause");
     return NextResponse.json(
-      { error: migrationMissing ? "Supabase에서 202607200004_split_x_settings.sql을 먼저 실행하세요." : `계정 저장 실패: ${error.message}` },
+      {
+        error: migrationMissing
+          ? "Supabase에서 202607200004_split_x_settings.sql을 먼저 실행하세요."
+          : safeDeleteBlocked
+            ? "Supabase에서 202607200005_fix_x_account_replace.sql을 실행하세요."
+            : `계정 저장 실패: ${error.message}`,
+      },
       { status: 500 },
     );
   }

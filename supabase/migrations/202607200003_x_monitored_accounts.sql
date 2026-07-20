@@ -79,10 +79,13 @@ begin
     raise exception 'X_ACCOUNT_INVALID_FORMAT';
   end if;
 
-  delete from public.x_monitored_accounts;
   insert into public.x_monitored_accounts (username, position)
   select username, position::integer
-  from unnest(normalized) with ordinality as u(username, position);
+  from unnest(normalized) with ordinality as u(username, position)
+  on conflict (username) do update set position = excluded.position;
+
+  delete from public.x_monitored_accounts
+  where not (username = any(normalized));
 
   insert into public.x_monitor_settings (
     id,
