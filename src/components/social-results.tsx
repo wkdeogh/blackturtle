@@ -40,7 +40,7 @@ export function SocialResults({ social }: { social: { periodDays: number; accoun
   return (
     <>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">01 · SOCIAL SIGNAL</p><h2>기업 언급과 감성</h2></div><p>최근 {social.periodDays}일 · {social.accounts.length}개 계정 · {social.analyzedPostCount}개 게시물</p></div>
+        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급과 감성</h2></div><p>최근 {social.periodDays}일 · {social.accounts.length}개 계정 · {social.analyzedPostCount}개 게시물</p></div>
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
@@ -56,7 +56,7 @@ export function SocialResults({ social }: { social: { periodDays: number; accoun
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">02 · SOURCE FEED</p><h2>최근 수집 게시물</h2></div><p>최신순 · reply와 repost 제외</p></div>
+        <div className="section-title"><div><p className="kicker">02 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>최신순 · reply와 repost 제외</p></div>
         <div className="post-grid">{social.posts.slice(0, 12).map((post) => <PostCard post={post} key={post.id} />)}</div>
         {!social.posts.length ? <div className="inline-empty">아직 수집된 X 게시물이 없습니다.</div> : null}
       </section>

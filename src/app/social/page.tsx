@@ -25,7 +25,7 @@ export default async function SocialPage() {
       <SiteHeader />
       <div className="page-shell dashboard-content">
         <section className="dashboard-hero compact-hero">
-          <div><p className="kicker">X · SOCIAL SIGNAL</p><h1>목소리를 모아<br /><em>기업 신호로.</em></h1><p className="hero-copy">저장된 마지막 X 분석 결과입니다. 아래 버튼을 눌러야만 X API를 호출하며 FRED는 갱신하지 않습니다.</p></div>
+          <div><p className="kicker">X DATA</p><h1>X 모니터링 결과</h1><p className="hero-copy">저장된 마지막 X 분석 결과입니다. 아래 버튼을 눌러야만 X API를 호출하며 FRED는 갱신하지 않습니다.</p></div>
           <div className="refresh-panel"><span>LAST X UPDATE</span><strong>{updatedAt ? formatDateTime(updatedAt) : "아직 없음"}</strong><Link className="secondary-link" href="/settings">모니터링 계정 관리 →</Link></div>
         </section>
 
