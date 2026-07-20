@@ -3,7 +3,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { collectFredData } from "@/lib/fred";
 import { isSameOriginPost } from "@/lib/session";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
-import type { DashboardSnapshot } from "@/lib/types";
+import type { DashboardSnapshot, RefreshSource } from "@/lib/types";
 import { collectXData } from "@/lib/x-api";
 
 export const maxDuration = 300;
@@ -21,7 +21,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
-  const missing = getMissingConfiguration();
+  let source: RefreshSource;
+  try {
+    const body = (await request.json()) as { source?: unknown };
+    if (body.source !== "macro" && body.source !== "social") throw new Error();
+    source = body.source;
+  } catch {
+    return NextResponse.json({ error: "갱신 대상이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  const missing = getMissingConfiguration(source);
   if (missing.length) {
     return NextResponse.json({ error: `설정되지 않은 환경 변수: ${missing.join(", ")}` }, { status: 503 });
   }
@@ -38,24 +47,36 @@ export async function POST(request: Request) {
 
   try {
     const previous = await getLatestSnapshot();
-    const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
-    if (!usernames.length) throw new Error("대시보드에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
+    const now = new Date().toISOString();
+    let macro = previous?.payload.macro ?? [];
+    let social = previous?.payload.social ?? {
+      periodDays: 7,
+      accounts: [],
+      posts: [],
+      companies: [],
+      analyzedPostCount: 0,
+    };
 
-    const [macro, social] = await Promise.all([
-      collectFredData(process.env.FRED_API_KEY!),
-      collectXData(
+    if (source === "macro") {
+      macro = await collectFredData(process.env.FRED_API_KEY!);
+    } else {
+      const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
+      if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
+      social = await collectXData(
         process.env.X_BEARER_TOKEN!,
         usernames,
         lookbackDays,
         perAccountPostLimit,
         totalPostLimit,
         previous?.payload.social,
-      ),
-    ]);
+      );
+    }
 
     const snapshot: DashboardSnapshot = {
       version: 1,
-      generatedAt: new Date().toISOString(),
+      generatedAt: now,
+      macroUpdatedAt: source === "macro" ? now : previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+      socialUpdatedAt: source === "social" ? now : previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
       macro,
       social,
     };
@@ -66,7 +87,7 @@ export async function POST(request: Request) {
     });
     if (completeError) throw new Error(`스냅샷 저장 실패: ${completeError.message}`);
 
-    return NextResponse.json({ ok: true, generatedAt: snapshot.generatedAt });
+    return NextResponse.json({ ok: true, source, generatedAt: snapshot.generatedAt });
   } catch (error) {
     const message = errorMessage(error);
     await supabase.rpc("fail_refresh", { p_run_id: runId, p_error: message });

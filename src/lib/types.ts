@@ -18,6 +18,8 @@ export interface MacroSeries {
   points: MacroPoint[];
 }
 
+export type RefreshSource = "macro" | "social";
+
 export interface CompanyMention {
   ticker: string;
   name: string;
@@ -55,6 +57,8 @@ export interface XAccountCursor {
 export interface DashboardSnapshot {
   version: 1;
   generatedAt: string;
+  macroUpdatedAt?: string;
+  socialUpdatedAt?: string;
   macro: MacroSeries[];
   social: {
     periodDays: number;

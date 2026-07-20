@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { RefreshSource } from "@/lib/types";
 
-export function RefreshButton({ compact = false }: { compact?: boolean }) {
+export function RefreshButton({ source, compact = false }: { source: RefreshSource; compact?: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -13,12 +14,16 @@ export function RefreshButton({ compact = false }: { compact?: boolean }) {
     if (loading) return;
     setLoading(true);
     setIsError(false);
-    setMessage("FRED와 X 데이터를 가져오는 중입니다…");
+    setMessage(source === "macro" ? "FRED 데이터를 가져오는 중입니다…" : "X 게시물을 가져오고 분석하는 중입니다…");
     try {
-      const response = await fetch("/api/refresh", { method: "POST" });
+      const response = await fetch("/api/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "갱신하지 못했습니다.");
-      setMessage("새 스냅샷을 저장했습니다.");
+      setMessage(source === "macro" ? "새 FRED 데이터를 저장했습니다." : "새 X 분석 데이터를 저장했습니다.");
       router.refresh();
     } catch (caught) {
       setIsError(true);
