@@ -47,6 +47,85 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
   };
 }
 
+export function getSnapshotSource(snapshot: StoredSnapshot): RefreshSource | null {
+  if (snapshot.payload.refreshSource === "macro" || snapshot.payload.refreshSource === "social") {
+    return snapshot.payload.refreshSource;
+  }
+
+  const generatedAt = snapshot.payload.generatedAt;
+  const macroMatches = snapshot.payload.macroUpdatedAt === generatedAt;
+  const socialMatches = snapshot.payload.socialUpdatedAt === generatedAt;
+  if (macroMatches !== socialMatches) return macroMatches ? "macro" : "social";
+  return null;
+}
+
+export async function getSnapshotHistory(limit = 100): Promise<StoredSnapshot[]> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return [];
+
+  const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  const { data, error } = await supabase
+    .from("dashboard_snapshots")
+    .select("id, created_at, payload")
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) {
+    if (error.code === "42P01") return [];
+    throw new Error(`히스토리 조회 실패: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    createdAt: row.created_at as string,
+    payload: row.payload as DashboardSnapshot,
+  }));
+}
+
+export async function getSnapshotById(id: string): Promise<StoredSnapshot | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("dashboard_snapshots")
+    .select("id, created_at, payload")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`히스토리 상세 조회 실패: ${error.message}`);
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    createdAt: data.created_at as string,
+    payload: data.payload as DashboardSnapshot,
+  };
+}
+
+export interface HistorySettingsResult {
+  retentionLimit: number;
+  migrationReady: boolean;
+}
+
+export async function getHistorySettings(): Promise<HistorySettingsResult> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { retentionLimit: 30, migrationReady: false };
+
+  const { data, error } = await supabase
+    .from("dashboard_settings")
+    .select("history_retention_limit")
+    .eq("id", "primary")
+    .maybeSingle();
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return { retentionLimit: 30, migrationReady: false };
+    }
+    throw new Error(`히스토리 설정 조회 실패: ${error.message}`);
+  }
+  return {
+    retentionLimit: (data?.history_retention_limit as number | undefined) ?? 30,
+    migrationReady: true,
+  };
+}
+
 export interface XMonitorSettingsResult {
   usernames: string[];
   lookbackDays: number;

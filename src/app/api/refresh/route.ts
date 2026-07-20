@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     const snapshot: DashboardSnapshot = {
       version: 1,
       generatedAt: now,
+      refreshSource: source,
       macroUpdatedAt: source === "macro" ? now : previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
       socialUpdatedAt: source === "social" ? now : previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
       macro,

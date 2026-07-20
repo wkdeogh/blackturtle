@@ -7,6 +7,7 @@ import { LogoutButton } from "@/components/dashboard-actions";
 const NAV_ITEMS = [
   { href: "/macro", label: "FRED 매크로" },
   { href: "/social", label: "X 모니터링" },
+  { href: "/history", label: "히스토리" },
   { href: "/settings", label: "계정 설정" },
 ];
 

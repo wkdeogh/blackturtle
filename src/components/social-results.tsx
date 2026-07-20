@@ -36,7 +36,9 @@ function PostCard({ post }: { post: SocialPost }) {
   );
 }
 
-export function SocialResults({ social }: { social: { analysisModel?: string; periodDays: number; accounts: unknown[]; posts: SocialPost[]; companies: MentionSummary[]; analyzedPostCount: number } }) {
+export function SocialResults({ social, expanded = false }: { social: { analysisModel?: string; periodDays: number; accounts: unknown[]; posts: SocialPost[]; companies: MentionSummary[]; analyzedPostCount: number }; expanded?: boolean }) {
+  const companies = expanded ? social.companies : social.companies.slice(0, 12);
+  const posts = expanded ? social.posts : social.posts.slice(0, 12);
   return (
     <>
       <section className="section-block signal-section">
@@ -44,7 +46,7 @@ export function SocialResults({ social }: { social: { analysisModel?: string; pe
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
-            {social.companies.slice(0, 12).map((company, index) => <CompanyRow company={company} rank={index + 1} key={company.ticker} />)}
+            {companies.map((company, index) => <CompanyRow company={company} rank={index + 1} key={company.ticker} />)}
             {!social.companies.length ? <p className="board-empty">수집된 게시물에서 기업 언급을 찾지 못했습니다.</p> : null}
           </div>
           <aside className="signal-note">
@@ -57,7 +59,7 @@ export function SocialResults({ social }: { social: { analysisModel?: string; pe
       </section>
       <section className="section-block">
         <div className="section-title"><div><p className="kicker">02 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>최신순 · reply와 repost 제외</p></div>
-        <div className="post-grid">{social.posts.slice(0, 12).map((post) => <PostCard post={post} key={post.id} />)}</div>
+        <div className="post-grid">{posts.map((post) => <PostCard post={post} key={post.id} />)}</div>
         {!social.posts.length ? <div className="inline-empty">아직 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>

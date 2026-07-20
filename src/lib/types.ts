@@ -57,6 +57,7 @@ export interface XAccountCursor {
 export interface DashboardSnapshot {
   version: 1;
   generatedAt: string;
+  refreshSource?: RefreshSource;
   macroUpdatedAt?: string;
   socialUpdatedAt?: string;
   macro: MacroSeries[];
