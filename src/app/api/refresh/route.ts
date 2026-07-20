@@ -68,6 +68,8 @@ export async function POST(request: Request) {
         lookbackDays,
         perAccountPostLimit,
         totalPostLimit,
+        process.env.OPENAI_API_KEY!,
+        process.env.OPENAI_MODEL ?? "gpt-5-nano",
         previous?.payload.social,
       );
     }

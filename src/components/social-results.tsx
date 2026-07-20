@@ -36,7 +36,7 @@ function PostCard({ post }: { post: SocialPost }) {
   );
 }
 
-export function SocialResults({ social }: { social: { periodDays: number; accounts: unknown[]; posts: SocialPost[]; companies: MentionSummary[]; analyzedPostCount: number } }) {
+export function SocialResults({ social }: { social: { analysisModel?: string; periodDays: number; accounts: unknown[]; posts: SocialPost[]; companies: MentionSummary[]; analyzedPostCount: number } }) {
   return (
     <>
       <section className="section-block signal-section">
@@ -51,7 +51,7 @@ export function SocialResults({ social }: { social: { periodDays: number; accoun
             <span className="note-index">NOTE 01</span><h3>카운트 해석법</h3>
             <p>한 게시물에 여러 기업이 나오면 기업마다 1회씩 집계합니다. 같은 게시물은 ID로 중복 제거됩니다.</p>
             <div className="legend"><span><i className="positive" />긍정</span><span><i className="neutral" />중립</span><span><i className="negative" />부정</span></div>
-            <small>현재 MVP는 키워드·문맥 규칙 기반 분석입니다. 결과는 투자 조언이 아닙니다.</small>
+            <small>{social.analysisModel ? `OpenAI ${social.analysisModel} 문맥 분석입니다.` : "기존 규칙 기반으로 분석된 스냅샷입니다."} 결과는 투자 조언이 아닙니다.</small>
           </aside>
         </div>
       </section>

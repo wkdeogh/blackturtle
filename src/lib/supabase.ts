@@ -121,6 +121,9 @@ export function getMissingConfiguration(source?: RefreshSource): string[] {
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
   ];
   if (!source || source === "macro") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
-  if (!source || source === "social") required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
+  if (!source || source === "social") {
+    required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
+    required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);
+  }
   return required.filter(([, value]) => !value).map(([name]) => name);
 }

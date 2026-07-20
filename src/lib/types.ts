@@ -61,6 +61,7 @@ export interface DashboardSnapshot {
   socialUpdatedAt?: string;
   macro: MacroSeries[];
   social: {
+    analysisModel?: string;
     periodDays: number;
     accounts: XAccountCursor[];
     posts: SocialPost[];

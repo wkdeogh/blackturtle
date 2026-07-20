@@ -1,4 +1,4 @@
-import { aggregateMentions, analyzePost } from "@/lib/social-analysis";
+import { aggregateMentions, analyzePostsWithOpenAI } from "@/lib/social-analysis";
 import type { DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
 
 interface XUserResponse {
@@ -93,6 +93,8 @@ export async function collectXData(
   lookbackDays: number,
   perAccountPostLimit: number | null,
   totalPostLimit: number | null,
+  openAIApiKey: string,
+  analysisModel: string,
   previous?: DashboardSnapshot["social"],
 ): Promise<DashboardSnapshot["social"]> {
   const previousCursors = new Map(previous?.accounts.map((account) => [account.username.toLowerCase(), account]) ?? []);
@@ -140,7 +142,7 @@ export async function collectXData(
   for (const result of results) for (const post of result.posts) merged.set(post.id, post);
 
   const accountCounts = new Map<string, number>();
-  const posts = [...merged.values()]
+  const rawPosts = [...merged.values()]
     .sort((left, right) => right.postedAt.localeCompare(left.postedAt))
     .filter((post) => {
       if (perAccountPostLimit === null) return true;
@@ -149,10 +151,20 @@ export async function collectXData(
       accountCounts.set(post.username, count + 1);
       return true;
     })
-    .slice(0, totalPostLimit ?? undefined)
-    .map(analyzePost);
+    .slice(0, totalPostLimit ?? undefined);
+
+  const canReusePreviousAnalysis = previous?.analysisModel === analysisModel;
+  const previousPosts = new Map((canReusePreviousAnalysis ? previous?.posts : [])?.map((post) => [post.id, post]) ?? []);
+  const postsToAnalyze = rawPosts.filter((post) => !previousPosts.has(post.id));
+  const newAnalysis = await analyzePostsWithOpenAI(postsToAnalyze, openAIApiKey, analysisModel);
+  const posts = rawPosts.map((post): SocialPost => {
+    const previousPost = previousPosts.get(post.id);
+    if (previousPost) return { ...post, mentions: previousPost.mentions };
+    return { ...post, mentions: newAnalysis.get(post.id) ?? [] };
+  });
 
   return {
+    analysisModel,
     periodDays: lookbackDays,
     accounts: results.map((result) => result.cursor),
     posts,

@@ -119,14 +119,11 @@ git remote -v</code></pre>
       </section>
 
       <section id="analysis-choice">
-        <div class="section-head"><span class="step">4</span><h2>감성 분석 방식 선택</h2><span class="tag optional">선택</span></div>
+        <div class="section-head"><span class="step">4</span><h2>OpenAI 감성 분석</h2><span class="tag">필수 · 저비용 모델</span></div>
         <div class="content">
-          <div class="choice-grid">
-            <article class="choice recommended"><strong>A. LLM API · 권장</strong><p>다중 기업, 반어, 복합 문맥에 상대적으로 강합니다. 게시물 × 기업별 감성·신뢰도·근거를 JSON으로 받습니다. 호출 비용이 추가됩니다.</p></article>
-            <article class="choice"><strong>B. 규칙 기반 · 무API</strong><p>회사 alias와 영어 감성 사전으로 시작합니다. 비용은 적지만 비꼼, 은어, 복합 문장에서 오판이 많아질 수 있습니다.</p></article>
-          </div>
-          <label class="check"><input type="checkbox" data-check><span><b>분석 방식 결정</b><span>A를 선택하면 사용할 제공자와 월 예산 상한을 정합니다. OpenAI를 사용할 경우 키는 <code>OPENAI_API_KEY</code> 서버 변수로 보관합니다.</span></span></label>
-          <label class="check"><input type="checkbox" data-check><span><b>초기 기업 사전 준비</b><span>관심 기업의 ticker / 정식명 / 자주 쓰는 별칭을 준비합니다. 예: <code>NVDA | NVIDIA | Nvidia</code>.</span></span></label>
+          <p>X 게시물을 묶음으로 보내 기업별 감성을 <code>positive | neutral | negative</code> 구조로 받습니다. 기본 모델은 분류 작업에 적합한 <code>gpt-5-nano</code>이며, 같은 모델로 분석한 기존 게시물은 다시 호출하지 않습니다.</p>
+          <label class="check"><input type="checkbox" data-check><span><b>API Key 발급</b><span>OpenAI Platform에서 API 키를 만들고 결제 한도도 설정합니다. 키는 서버 변수 <code>OPENAI_API_KEY</code>로만 보관합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>모델 확인</b><span><code>OPENAI_MODEL=gpt-5-nano</code>를 권장합니다. 더 높은 정확도가 필요할 때만 다른 Structured Outputs 지원 모델로 변경합니다.</span></span></label>
           <div class="links"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI API Keys ↗</a><a href="https://developers.openai.com/api/docs/guides/structured-outputs" target="_blank" rel="noreferrer">Structured Outputs ↗</a></div>
         </div>
       </section>
@@ -153,6 +150,8 @@ SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 FRED_API_KEY=
 X_BEARER_TOKEN=
+OPENAI_API_KEY=         # X 게시물 기업·감성 분석
+OPENAI_MODEL=gpt-5-nano # 선택: 기본값과 같으면 생략 가능
 X_TARGET_USERNAMES=     # 선택: 003 migration 전 임시 fallback
 X_LOOKBACK_DAYS=7       # 선택: 기본 7일, 웹 설정이 우선
 X_PER_ACCOUNT_POST_LIMIT= # 선택: 비우면 무제한
