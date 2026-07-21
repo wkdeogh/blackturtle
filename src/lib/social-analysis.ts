@@ -43,7 +43,7 @@ const RESPONSE_SCHEMA = {
         type: "object",
         additionalProperties: false,
         properties: {
-          id: { type: "string", description: "Input post ID" },
+          id: { type: "string", description: "Exact short input post key, for example p0" },
           mentions: {
             type: "array",
             items: {
@@ -118,6 +118,7 @@ function normalizeMention(value: NonNullable<NonNullable<AnalysisPayload["analys
 }
 
 async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Promise<Map<string, CompanyMention[]>> {
+  const keyedPosts = posts.map((post, index) => ({ key: `p${index}`, post }));
   const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -128,7 +129,7 @@ async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Pr
       model,
       store: false,
       instructions: INSTRUCTIONS,
-      input: JSON.stringify({ posts: posts.map(({ id, text }) => ({ id, text })) }),
+      input: JSON.stringify({ posts: keyedPosts.map(({ key, post }) => ({ id: key, text: post.text })) }),
       max_output_tokens: 16_000,
       text: {
         format: {
@@ -158,16 +159,18 @@ async function analyzeBatch(posts: RawPost[], apiKey: string, model: string): Pr
     throw new Error("OpenAI 분석 결과 JSON을 읽지 못했습니다.");
   }
 
-  const expectedIds = new Set(posts.map((post) => post.id));
+  const originalIdByKey = new Map(keyedPosts.map(({ key, post }) => [key, post.id]));
   const result = new Map<string, CompanyMention[]>();
   for (const analysis of parsed.analyses ?? []) {
-    if (typeof analysis.id !== "string" || !expectedIds.has(analysis.id) || result.has(analysis.id)) continue;
+    if (typeof analysis.id !== "string") continue;
+    const originalId = originalIdByKey.get(analysis.id);
+    if (!originalId || result.has(originalId)) continue;
     const mentions = new Map<string, CompanyMention>();
     for (const rawMention of analysis.mentions ?? []) {
       const mention = normalizeMention(rawMention);
       if (mention && !mentions.has(mention.ticker)) mentions.set(mention.ticker, mention);
     }
-    result.set(analysis.id, [...mentions.values()]);
+    result.set(originalId, [...mentions.values()]);
   }
 
   const missingIds = posts.filter((post) => !result.has(post.id)).map((post) => post.id);
