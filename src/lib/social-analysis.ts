@@ -1,6 +1,6 @@
 import type { CompanyMention, MentionSummary, Sentiment, SocialPost } from "@/lib/types";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-import { analysisReasoningEffort } from "@/lib/openai-config";
+import { OPENAI_REASONING_EFFORT } from "@/lib/openai-config";
 
 type RawPost = Omit<SocialPost, "mentions" | "translationKo" | "analyzed">;
 
@@ -139,7 +139,7 @@ async function analyzeBatchOnce(posts: RawPost[], apiKey: string, model: string)
     },
     body: JSON.stringify({
       model,
-      reasoning: { effort: analysisReasoningEffort(model) },
+      reasoning: { effort: OPENAI_REASONING_EFFORT },
       store: false,
       instructions: INSTRUCTIONS,
       input: JSON.stringify({ posts: keyedPosts.map(({ key, post }) => ({ id: key, text: post.text })) }),
