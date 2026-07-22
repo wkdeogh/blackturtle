@@ -1,5 +1,5 @@
 import { analyzeDashboardWithOpenAI, buildComprehensiveAnalysisInput, estimateAnalysisInputTokens } from "@/lib/comprehensive-analysis";
-import { DEFAULT_OPENAI_COMPREHENSIVE_MODEL } from "@/lib/openai-config";
+import { resolveOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { refreshErrorMessage } from "@/lib/refresh-runner";
 import { getSnapshotById, getSupabaseAdmin } from "@/lib/supabase";
 import type { ComprehensiveAnalysisReport } from "@/lib/types";
@@ -13,7 +13,7 @@ async function analyzeAndStore(runId: string, snapshotId: string, requestedModel
 
   const snapshot = await getSnapshotById(snapshotId);
   if (!snapshot) throw new Error("분석할 대시보드 스냅샷을 찾지 못했습니다.");
-  const model = requestedModel || process.env.OPENAI_COMPREHENSIVE_MODEL || DEFAULT_OPENAI_COMPREHENSIVE_MODEL;
+  const model = resolveOpenAIComprehensiveModel(requestedModel || process.env.OPENAI_COMPREHENSIVE_MODEL);
   const estimatedInputTokens = estimateAnalysisInputTokens(buildComprehensiveAnalysisInput(snapshot.payload));
 
   const stageResult = await supabase.rpc("set_comprehensive_analysis_stage", { p_run_id: runId, p_stage: "analyzing" });

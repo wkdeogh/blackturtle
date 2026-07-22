@@ -1,7 +1,7 @@
 import { ComprehensiveAnalysisPanel } from "@/components/comprehensive-analysis-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { DEFAULT_OPENAI_COMPREHENSIVE_MODEL } from "@/lib/openai-config";
+import { resolveOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { getComprehensiveAnalysisState, getLatestSnapshot } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function AnalysisPage() {
   try { [snapshot, state] = await Promise.all([getLatestSnapshot(), getComprehensiveAnalysisState()]); }
   catch (error) { databaseError = error instanceof Error ? error.message : "종합분석 데이터를 불러오지 못했습니다."; }
   const hasData = Boolean(snapshot && (snapshot.payload.macro.length || snapshot.payload.market?.series.length || snapshot.payload.social.posts.length));
-  const analysisModel = process.env.OPENAI_COMPREHENSIVE_MODEL || DEFAULT_OPENAI_COMPREHENSIVE_MODEL;
+  const analysisModel = resolveOpenAIComprehensiveModel(process.env.OPENAI_COMPREHENSIVE_MODEL);
 
   return <main className="dashboard-page">
     <SiteHeader />

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/format";
+import { OPENAI_COMPREHENSIVE_MODELS, type OpenAIComprehensiveModel } from "@/lib/openai-config";
 import type { ComprehensiveAnalysisRunStatus, StoredComprehensiveAnalysis } from "@/lib/types";
 
 interface Preview {
@@ -14,6 +15,12 @@ interface Preview {
 }
 
 function number(value: number): string { return new Intl.NumberFormat("ko-KR").format(value); }
+
+const MODEL_DESCRIPTIONS: Record<OpenAIComprehensiveModel, string> = {
+  "gpt-5.6-sol": "최고 성능",
+  "gpt-5.6-terra": "성능·비용 균형",
+  "gpt-5.6-luna": "빠르고 비용 효율적",
+};
 
 function shortText(value: string, maxLength: number): string {
   const normalized = value.trim();
@@ -65,10 +72,11 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
   currentSnapshotId: string | null;
   migrationReady: boolean;
   hasData: boolean;
-  analysisModel: string;
+  analysisModel: OpenAIComprehensiveModel;
 }) {
   const router = useRouter();
   const [run, setRun] = useState(initialRun);
+  const [selectedModel, setSelectedModel] = useState<OpenAIComprehensiveModel>(analysisModel);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -101,7 +109,7 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
   async function requestPreview() {
     setLoadingPreview(true); setError("");
     try {
-      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "preview" }) });
+      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "preview", model: selectedModel }) });
       const body = (await response.json()) as Preview & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "토큰을 계산하지 못했습니다.");
       setPreview(body);
@@ -113,7 +121,7 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
     if (!preview) return;
     setStarting(true); setError("");
     try {
-      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", snapshotId: preview.snapshotId }), keepalive: true });
+      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", snapshotId: preview.snapshotId, model: preview.model }), keepalive: true });
       const body = (await response.json()) as { run?: ComprehensiveAnalysisRunStatus | null; error?: string };
       if (!response.ok) throw new Error(body.error ?? "종합분석을 시작하지 못했습니다.");
       setPreview(null);
@@ -124,12 +132,12 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
 
   const running = run?.status === "running";
   const disabled = !migrationReady || !hasData || loadingPreview || starting || running;
-  const status = running ? (run.stage === "saving" ? "분석 결과를 저장하는 중입니다. 페이지를 나가도 계속됩니다…" : "GPT 고급모델이 종합분석 리포트를 작성 중입니다. 페이지를 나가도 계속됩니다…") : run?.status === "failed" ? `최근 분석 실패: ${run.error ?? "알 수 없는 오류"}` : error;
+  const status = running ? (run.stage === "saving" ? "분석 결과를 저장하는 중입니다. 페이지를 나가도 계속됩니다…" : `${run.model}이 종합분석 리포트를 작성 중입니다. 페이지를 나가도 계속됩니다…`) : run?.status === "failed" ? `최근 분석 실패: ${run.error ?? "알 수 없는 오류"}` : error;
 
   return <>
     <section className="analysis-action-card">
       <div><p className="kicker">ON-DEMAND ANALYSIS</p><h2>현재 저장 데이터 종합분석</h2><p>매크로 시계열, 시장지수와 ETF 가격, X 게시물·기업 언급·주제 결과를 하나의 프롬프트로 분석합니다. 버튼을 누르기 전에는 비용이 발생하지 않습니다.</p></div>
-      <div className="analysis-action"><span>MODEL</span><strong>{analysisModel}</strong><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "분석하기"}</button>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : null}</div>
+      <div className="analysis-action"><label htmlFor="comprehensive-model">MODEL</label><select id="comprehensive-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value as OpenAIComprehensiveModel)} disabled={running || loadingPreview || starting}>{OPENAI_COMPREHENSIVE_MODELS.map((model) => <option value={model} key={model}>{model} · {MODEL_DESCRIPTIONS[model]}</option>)}</select><small>{MODEL_DESCRIPTIONS[selectedModel]} · reasoning medium</small><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "분석하기"}</button>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : null}</div>
     </section>
 
     {!migrationReady ? <aside className="setup-alert"><div><span className="alert-dot" /><strong>종합분석 저장 설정이 필요합니다</strong></div><p>Supabase SQL Editor에서 <code>202607220011_comprehensive_analysis.sql</code>을 실행하세요.</p></aside> : null}

@@ -337,8 +337,10 @@ a { color: inherit; }
 .analysis-action-card h2 { margin: 6px 0 8px; font-family: Georgia, serif; font-size: 31px; font-weight: 500; letter-spacing: -.035em; }
 .analysis-action-card > div:first-child > p:last-child { max-width: 680px; margin: 0; color: var(--muted); font-size: 12px; }
 .analysis-action { border-left: 1px solid var(--line); padding-left: 25px; }
-.analysis-action > span { display: block; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .14em; }
-.analysis-action > strong { display: block; margin: 4px 0 14px; font-family: Georgia, serif; font-size: 21px; font-weight: 500; }
+.analysis-action > label { display: block; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .14em; }
+.analysis-action > select { width: 100%; height: 44px; margin-top: 7px; border: 1px solid var(--line); border-radius: 10px; padding: 0 34px 0 11px; color: var(--ink); outline: 0; background: var(--input-bg); }
+.analysis-action > select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(105,195,151,.14); }
+.analysis-action > small { display: block; margin: 6px 0 14px; color: var(--muted); font-size: 8px; }
 .analysis-action button { width: 100%; }
 .analysis-action > p { margin: 8px 0 0; color: var(--green-2); font-size: 9px; }
 .analysis-action > p.error { color: var(--red); }

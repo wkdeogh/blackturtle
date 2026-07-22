@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 import { isAuthenticated } from "@/lib/auth";
 import { buildComprehensiveAnalysisInput, COMPREHENSIVE_MAX_OUTPUT_TOKENS, estimateAnalysisInputTokens } from "@/lib/comprehensive-analysis";
-import { DEFAULT_OPENAI_COMPREHENSIVE_MODEL } from "@/lib/openai-config";
+import { isOpenAIComprehensiveModel, resolveOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
 import { getComprehensiveAnalysisState, getLatestSnapshot, getSupabaseAdmin } from "@/lib/supabase";
 import { comprehensiveAnalysisWorkflow } from "@/workflows/comprehensive-analysis";
@@ -38,13 +38,19 @@ export async function POST(request: Request) {
 
   let action: "preview" | "start";
   let requestedSnapshotId: string | undefined;
+  let requestedModel: unknown;
   try {
-    const body = (await request.json()) as { action?: unknown; snapshotId?: unknown };
+    const body = (await request.json()) as { action?: unknown; snapshotId?: unknown; model?: unknown };
     if (body.action !== "preview" && body.action !== "start") throw new Error();
     action = body.action;
     requestedSnapshotId = typeof body.snapshotId === "string" ? body.snapshotId : undefined;
+    requestedModel = body.model;
   } catch {
     return NextResponse.json({ error: "종합분석 요청이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  if (requestedModel !== undefined && !isOpenAIComprehensiveModel(requestedModel)) {
+    return NextResponse.json({ error: "지원하지 않는 종합분석 모델입니다." }, { status: 400 });
   }
 
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "설정되지 않은 환경 변수: OPENAI_API_KEY" }, { status: 503 });
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
 
   const input = buildComprehensiveAnalysisInput(snapshot.payload);
   const estimatedInputTokens = estimateAnalysisInputTokens(input);
-  const model = process.env.OPENAI_COMPREHENSIVE_MODEL || DEFAULT_OPENAI_COMPREHENSIVE_MODEL;
+  const model = isOpenAIComprehensiveModel(requestedModel) ? requestedModel : resolveOpenAIComprehensiveModel(process.env.OPENAI_COMPREHENSIVE_MODEL);
   if (action === "preview") {
     return NextResponse.json({
       snapshotId: snapshot.id,
