@@ -11,7 +11,9 @@ interface OpenAIResponse {
 
 type GeneratedReport = Omit<ComprehensiveAnalysisReport, "version" | "generatedAt" | "sourceSnapshotId" | "sourceSnapshotGeneratedAt" | "model" | "estimatedInputTokens">;
 
-const STRING_ARRAY = { type: "array", items: { type: "string" } } as const;
+export const COMPREHENSIVE_MAX_OUTPUT_TOKENS = 8_000;
+
+const STRING_ARRAY = { type: "array", items: { type: "string" }, maxItems: 2 } as const;
 
 const REPORT_SCHEMA = {
   type: "object",
@@ -27,6 +29,8 @@ const REPORT_SCHEMA = {
     },
     key_insights: {
       type: "array",
+      minItems: 3,
+      maxItems: 3,
       items: {
         type: "object",
         additionalProperties: false,
@@ -39,6 +43,7 @@ const REPORT_SCHEMA = {
     },
     opportunities: {
       type: "array",
+      maxItems: 2,
       items: {
         type: "object",
         additionalProperties: false,
@@ -48,6 +53,7 @@ const REPORT_SCHEMA = {
     },
     risks: {
       type: "array",
+      maxItems: 2,
       items: {
         type: "object",
         additionalProperties: false,
@@ -57,6 +63,8 @@ const REPORT_SCHEMA = {
     },
     scenarios: {
       type: "array",
+      minItems: 3,
+      maxItems: 3,
       items: {
         type: "object",
         additionalProperties: false,
@@ -66,6 +74,7 @@ const REPORT_SCHEMA = {
     },
     watchlist: {
       type: "array",
+      maxItems: 4,
       items: {
         type: "object",
         additionalProperties: false,
@@ -73,7 +82,7 @@ const REPORT_SCHEMA = {
         required: ["item", "current_context", "why_it_matters", "trigger"],
       },
     },
-    data_caveats: STRING_ARRAY,
+    data_caveats: { type: "array", items: { type: "string" }, maxItems: 3 },
     bottom_line: { type: "string" },
   },
   required: ["headline", "executive_summary", "market_regime", "key_insights", "opportunities", "risks", "scenarios", "watchlist", "data_caveats", "bottom_line"],
@@ -97,13 +106,16 @@ Constraints:
 - Do not issue personalized buy/sell orders. Frame opportunities, risks, and responses as conditional research notes.
 - Write in clear, compact Korean. Preserve official indicator names, asset symbols, account names, and tickers when useful.
 
-Output:
-- Headline and executive summary first.
-- 4–8 key insights ranked by decision relevance.
-- Up to 5 opportunities and 5 risks; empty arrays are allowed when evidence is insufficient.
-- Exactly three scenarios named 강세, 기본, 약세, each with observable conditions rather than invented probabilities.
-- A prioritized watchlist and a direct bottom line.
-- Avoid promotional language and repeated disclaimers.`;
+Output length is a hard product constraint: the visible report should fit within roughly three mobile-screen scrolls. Prefer omission over repetition.
+- Headline: at most 30 Korean characters.
+- Executive summary: exactly 2 short sentences, at most 180 Korean characters total.
+- Market regime: 1 short summary sentence and at most 2 compact evidence bullets.
+- Exactly 3 key insights. For each, use 1 analysis sentence, at most 2 short evidence bullets, and 1 short investor implication sentence.
+- At most 2 opportunities and 2 risks. Each rationale/transmission is 1 sentence; include at most 2 conditions/signals and 1 counter-risk.
+- Exactly three scenarios named 강세, 기본, 약세. Give at most 2 short conditions, 1 short impact sentence, and 1 short response sentence.
+- At most 4 watchlist items. Each field must be a short phrase or one short sentence.
+- Bottom line: exactly 2 short sentences, at most 180 Korean characters total.
+- Keep the entire visible Korean prose under about 1,600 characters. Avoid introductions, repeated evidence, generic explanation, promotional language, and repeated disclaimers.`;
 
 function outputText(body: OpenAIResponse): string | null {
   if (body.output_text) return body.output_text;
@@ -150,8 +162,8 @@ export async function analyzeDashboardWithOpenAI(snapshot: DashboardSnapshot, ap
       store: false,
       instructions: INSTRUCTIONS,
       input,
-      max_output_tokens: 20_000,
-      text: { verbosity: "high", format: { type: "json_schema", name: "comprehensive_investment_report", strict: true, schema: REPORT_SCHEMA } },
+      max_output_tokens: COMPREHENSIVE_MAX_OUTPUT_TOKENS,
+      text: { verbosity: "low", format: { type: "json_schema", name: "comprehensive_investment_report", strict: true, schema: REPORT_SCHEMA } },
     }),
     cache: "no-store",
   }, 600_000, `OpenAI ${model} 종합분석`);

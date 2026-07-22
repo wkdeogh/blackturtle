@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 import { isAuthenticated } from "@/lib/auth";
-import { buildComprehensiveAnalysisInput, estimateAnalysisInputTokens } from "@/lib/comprehensive-analysis";
+import { buildComprehensiveAnalysisInput, COMPREHENSIVE_MAX_OUTPUT_TOKENS, estimateAnalysisInputTokens } from "@/lib/comprehensive-analysis";
 import { DEFAULT_OPENAI_COMPREHENSIVE_MODEL } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
 import { getComprehensiveAnalysisState, getLatestSnapshot, getSupabaseAdmin } from "@/lib/supabase";
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       snapshotId: snapshot.id,
       model,
       estimatedInputTokens,
-      maxOutputTokens: 20_000,
+      maxOutputTokens: COMPREHENSIVE_MAX_OUTPUT_TOKENS,
       dataCounts: {
         macro: snapshot.payload.macro.length,
         market: (snapshot.payload.market?.series.length ?? 0) + (snapshot.payload.market?.countryEtfs.length ?? 0),
