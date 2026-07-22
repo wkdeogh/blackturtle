@@ -48,8 +48,10 @@ export function MacroLineChart({
               <stop offset="0%" stopColor="#a94c47" />
               <stop offset="25%" stopColor="#a94c47" />
               <stop offset="25%" stopColor="#d87a63" />
-              <stop offset="50%" stopColor="#d87a63" />
-              <stop offset="50%" stopColor="#4f9273" />
+              <stop offset="45%" stopColor="#d87a63" />
+              <stop offset="45%" stopColor="#737e78" />
+              <stop offset="55%" stopColor="#737e78" />
+              <stop offset="55%" stopColor="#4f9273" />
               <stop offset="75%" stopColor="#4f9273" />
               <stop offset="75%" stopColor="#257653" />
               <stop offset="100%" stopColor="#257653" />

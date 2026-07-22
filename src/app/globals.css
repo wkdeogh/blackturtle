@@ -222,7 +222,7 @@ a { color: inherit; }
 .fear-score.neutral { color: var(--muted); }
 .fear-score.greed, .fear-score.extreme-greed { color: var(--green-2); }
 .fear-scale { position: relative; padding-top: 8px; }
-.fear-scale > div { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; height: 8px; overflow: hidden; border-radius: 999px; }
+.fear-scale > div { display: grid; grid-template-columns: 25fr 20fr 10fr 20fr 25fr; gap: 3px; height: 8px; overflow: hidden; border-radius: 999px; }
 .fear-scale > div span.extreme-fear { background: #a94c47; }
 .fear-scale > div span.fear { background: #d87a63; }
 .fear-scale > div span.neutral { background: #737e78; }
