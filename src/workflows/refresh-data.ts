@@ -48,15 +48,15 @@ async function collectMacroAndStoreDraft(runId: string) {
 
 async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_PRIMARY_IDS);
   if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_PRIMARY_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_PRIMARY_IDS);
   throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
 }
 
 async function collectCountryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_COUNTRY_IDS);
   if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_COUNTRY_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_COUNTRY_IDS);
   throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
 }
 
