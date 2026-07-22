@@ -70,6 +70,11 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
   const previous = await getLatestSnapshot();
   const generatedAt = new Date().toISOString();
+  const mergeSeries = (stored: MarketSnapshot["series"] | undefined, fresh: MarketSnapshot["series"], order: string[]) => {
+    const byId = new Map((stored ?? []).map((series) => [series.id, series]));
+    for (const series of fresh) byId.set(series.id, series);
+    return order.map((id) => byId.get(id)).filter((series): series is MarketSnapshot["series"][number] => Boolean(series));
+  };
   const snapshot: DashboardSnapshot = {
     version: 1,
     generatedAt,
@@ -83,8 +88,8 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
     market: {
       provider: primary.provider,
       peakWindowYears: 3,
-      series: primary.series.filter((series) => series.group === "market"),
-      countryEtfs: countries.series.filter((series) => series.group === "country"),
+      series: mergeSeries(previous?.payload.market?.series, primary.series.filter((series) => series.group === "market"), MARKET_PRIMARY_IDS),
+      countryEtfs: mergeSeries(previous?.payload.market?.countryEtfs, countries.series.filter((series) => series.group === "country"), MARKET_COUNTRY_IDS),
       warnings: [...primary.warnings, ...countries.warnings],
     },
     social: previous?.payload.social ?? {
@@ -301,6 +306,9 @@ export async function refreshDataWorkflow(
       if (primary.provider === "Twelve Data") {
         stage = "무료 API 호출 한도 대기";
         await sleep("61s");
+      } else {
+        stage = "무료 API 호출 간격 대기";
+        await sleep("2s");
       }
       stage = "국가 ETF 수집";
       const countries = await collectCountryMarketData();

@@ -61,14 +61,17 @@ export async function collectAlphaVantageMarketBatch(apiKey: string, definitionI
   const definitions = definitionIds
     .map((id) => MARKET_DEFINITIONS.find((definition) => definition.id === id))
     .filter((definition): definition is MarketDefinition => Boolean(definition));
-  const settled = await Promise.allSettled(definitions.map((definition) => collectOne(definition, apiKey)));
   const series: MarketSeries[] = [];
   const warnings: string[] = [];
-  settled.forEach((result, index) => {
-    const definition = definitions[index];
-    if (result.status === "fulfilled") series.push(result.value);
-    else warnings.push(`${definition.label} (${definition.symbol}): ${result.reason instanceof Error ? result.reason.message : "알 수 없는 오류"}`.slice(0, 240));
-  });
+  for (const definition of definitions) {
+    try {
+      series.push(await collectOne(definition, apiKey));
+    } catch (error) {
+      warnings.push(`${definition.label} (${definition.symbol}): ${error instanceof Error ? error.message : "알 수 없는 오류"}`.slice(0, 240));
+    }
+    // Alpha Vantage free keys ask clients to stay below one request per second.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+  }
   if (definitions.length && !series.length) throw new Error(warnings.join(" · ") || "수집된 시장 데이터가 없습니다.");
   return { provider: "Alpha Vantage", series, warnings };
 }
