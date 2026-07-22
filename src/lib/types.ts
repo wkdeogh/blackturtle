@@ -50,6 +50,7 @@ export interface SocialPost {
   url: string;
   lang?: string;
   mentions: CompanyMention[];
+  translationKo?: string;
   analyzed?: boolean;
 }
 

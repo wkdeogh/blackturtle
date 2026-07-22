@@ -282,10 +282,20 @@ a { color: inherit; }
 .legend span { display: flex; align-items: center; gap: 5px; color: #c8d7ce; font-size: 9px; }.legend i { width: 7px; height: 7px; border-radius: 50%; }
 .board-empty { padding: 40px 0; color: var(--muted); text-align: center; font-size: 13px; }
 .post-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.account-post-groups { display: grid; gap: 30px; }
+.account-post-group { min-width: 0; }
+.account-post-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; border-bottom: 1px solid var(--line); padding: 0 2px 10px; }
+.account-post-head h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 21px; font-weight: 500; }
+.account-post-head span { color: var(--muted); font-size: 9px; font-weight: 900; }
 .post-card { border: 1px solid var(--line); border-radius: 15px; background: var(--card); padding: 18px; }
 .post-head { display: flex; justify-content: space-between; gap: 20px; }
 .post-head strong { font-size: 12px; }.post-head time { color: var(--muted); font-size: 9px; }
 .post-card > p { min-height: 66px; margin: 16px 0; color: #c9d3cd; font-size: 12px; white-space: pre-wrap; }
+.post-translation { margin: -2px 0 16px; border-left: 2px solid var(--green); padding: 10px 12px; background: #111a15; }
+.post-translation span { display: block; margin-bottom: 6px; color: var(--green-2); font-size: 8px; font-weight: 950; letter-spacing: .08em; }
+.post-translation p { margin: 0; color: #e1e9e4; font-size: 11px; line-height: 1.65; white-space: pre-wrap; }
+.post-translation.pending { border-left-color: #9a7130; background: #1d1911; }
+.post-translation.pending span, .post-translation.pending p { color: #c9ad79; }
 .post-foot { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
 .post-foot > a { color: var(--muted); font-size: 9px; white-space: nowrap; }
 .mention-chips { display: flex; flex-wrap: wrap; gap: 5px; }

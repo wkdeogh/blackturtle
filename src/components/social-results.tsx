@@ -72,10 +72,13 @@ function CompanyRow({ company, rank }: { company: MentionSummary; rank: number }
 }
 
 function PostCard({ post }: { post: SocialPost }) {
+  const translation = post.translationKo?.trim();
+  const showTranslation = Boolean(translation) && (post.lang?.toLowerCase() !== "ko" || translation !== post.text.trim());
   return (
     <article className="post-card">
       <div className="post-head"><strong>@{post.username}</strong><time dateTime={post.postedAt}>{formatDateTime(post.postedAt)}</time></div>
       <p>{post.text}</p>
+      {showTranslation ? <div className="post-translation"><span>한국어 번역</span><p>{translation}</p></div> : !translation && post.lang?.toLowerCase() !== "ko" ? <div className="post-translation pending"><span>한국어 번역</span><p>{post.analyzed === false ? "LLM 분석 대기 중입니다." : "저장 데이터 LLM 재분석 후 번역이 표시됩니다."}</p></div> : null}
       <div className="post-foot">
         <div className="mention-chips">
           {post.mentions.map((mention) => <span className={`mention-chip ${mention.sentiment}`} key={mention.ticker}>${mention.ticker} · {mention.sentiment === "positive" ? "긍정" : mention.sentiment === "negative" ? "부정" : "중립"}</span>)}
@@ -103,8 +106,17 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
     [filteredPosts, selectedAccount, social.companies],
   );
   const filteredAnalyzedCount = filteredPosts.filter((post) => post.analyzed !== false).length;
+  const postGroups = useMemo(() => {
+    const groups = new Map<string, SocialPost[]>();
+    for (const post of filteredPosts) {
+      const username = post.username.toLowerCase();
+      const posts = groups.get(username) ?? [];
+      posts.push(post);
+      groups.set(username, posts);
+    }
+    return [...groups].map(([username, posts]) => ({ username, posts }));
+  }, [filteredPosts]);
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
-  const posts = expanded ? filteredPosts : filteredPosts.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
   const topics = social.topics ?? [];
   const postsById = useMemo(() => new Map(social.posts.map((post) => [post.id, post])), [social.posts]);
@@ -138,8 +150,8 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{accountLabel} · 최신순 · reply와 repost 제외</p></div>
-        <div className="post-grid">{posts.map((post) => <PostCard post={post} key={post.id} />)}</div>
+        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물 전체</h2></div><p>{accountLabel} · {filteredPosts.length}개 · 계정별 최신순</p></div>
+        <div className="account-post-groups">{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 게시물</span></div><div className="post-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
         {!filteredPosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>

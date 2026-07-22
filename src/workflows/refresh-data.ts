@@ -82,8 +82,9 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
     throw new Error("먼저 X 게시물 수집만 실행해 저장된 게시물을 만드세요.");
   }
   const analysisModel = process.env.OPENAI_MODEL ?? "gpt-5-nano";
-  const rawPosts = previous.payload.social.posts.map(({ mentions: _mentions, analyzed: _analyzed, ...post }) => {
+  const rawPosts = previous.payload.social.posts.map(({ mentions: _mentions, translationKo: _translationKo, analyzed: _analyzed, ...post }) => {
     void _mentions;
+    void _translationKo;
     void _analyzed;
     return post;
   });

@@ -1,8 +1,8 @@
 import { aggregateMentions, analyzePostsWithOpenAI, type PostAnalysisResult } from "@/lib/social-analysis";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-import type { CompanyMention, DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
+import type { DashboardSnapshot, SocialPost, XAccountCursor } from "@/lib/types";
 
-export type RawSocialPost = Omit<SocialPost, "mentions">;
+export type RawSocialPost = Omit<SocialPost, "mentions" | "translationKo" | "analyzed">;
 
 export interface PreparedXCollection {
   analysisModel: string;
@@ -143,8 +143,10 @@ export async function prepareXCollection(
   const merged = new Map<string, RawSocialPost>();
   for (const post of previous?.posts ?? []) {
     if (new Date(post.postedAt).getTime() >= cutoff) {
-      const { mentions: _mentions, ...raw } = post;
+      const { mentions: _mentions, translationKo: _translationKo, analyzed: _analyzed, ...raw } = post;
       void _mentions;
+      void _translationKo;
+      void _analyzed;
       merged.set(post.id, raw);
     }
   }
@@ -173,7 +175,7 @@ export async function prepareXCollection(
     postsToAnalyze,
     reusedAnalysis: rawPosts.flatMap((post) => {
       const previousPost = previousPosts.get(post.id);
-      return previousPost ? [{ id: post.id, mentions: previousPost.mentions }] : [];
+      return previousPost ? [{ id: post.id, mentions: previousPost.mentions, translationKo: previousPost.translationKo ?? "" }] : [];
     }),
   };
 }
@@ -182,15 +184,19 @@ export function finalizeXCollection(
   prepared: PreparedXCollection,
   newAnalysis: PostAnalysisResult[],
 ): DashboardSnapshot["social"] {
-  const analyses = new Map<string, CompanyMention[]>();
-  for (const { id, mentions } of prepared.reusedAnalysis) analyses.set(id, mentions);
-  for (const { id, mentions } of newAnalysis) analyses.set(id, mentions);
+  const analyses = new Map<string, Omit<PostAnalysisResult, "id">>();
+  for (const { id, mentions, translationKo } of prepared.reusedAnalysis) analyses.set(id, { mentions, translationKo });
+  for (const { id, mentions, translationKo } of newAnalysis) analyses.set(id, { mentions, translationKo });
 
-  const posts = prepared.rawPosts.map((post): SocialPost => ({
-    ...post,
-    mentions: analyses.get(post.id) ?? [],
-    analyzed: analyses.has(post.id),
-  }));
+  const posts = prepared.rawPosts.map((post): SocialPost => {
+    const analysis = analyses.get(post.id);
+    return {
+      ...post,
+      mentions: analysis?.mentions ?? [],
+      translationKo: analysis?.translationKo || undefined,
+      analyzed: Boolean(analysis),
+    };
+  });
   return {
     analysisModel: prepared.analysisModel,
     periodDays: prepared.periodDays,
@@ -211,6 +217,7 @@ export function finalizeXCollectionWithoutAnalysis(
     return {
       ...post,
       mentions: saved?.mentions ?? [],
+      translationKo: saved?.translationKo,
       analyzed: saved ? saved.analyzed !== false : false,
     };
   });
@@ -246,6 +253,6 @@ export async function collectXData(
   const analysis = await analyzePostsWithOpenAI(prepared.postsToAnalyze, openAIApiKey, analysisModel);
   return finalizeXCollection(
     prepared,
-    [...analysis].map(([id, mentions]) => ({ id, mentions })),
+    [...analysis].map(([id, value]) => ({ id, ...value })),
   );
 }
