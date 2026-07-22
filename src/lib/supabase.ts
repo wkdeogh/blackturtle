@@ -265,7 +265,9 @@ export function getMissingConfiguration(source?: RefreshSource, socialMode: Soci
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
   ];
   if (!source || source === "macro") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
-  if (!source || source === "market") required.push(["TWELVE_DATA_API_KEY", process.env.TWELVE_DATA_API_KEY]);
+  if ((!source || source === "market") && !process.env.ALPHA_VANTAGE_API_KEY && !process.env.TWELVE_DATA_API_KEY) {
+    required.push(["ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY", undefined]);
+  }
   if (!source || source === "social") {
     if (socialMode !== "analyze_only") required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
     if (socialMode !== "collect_only") required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);

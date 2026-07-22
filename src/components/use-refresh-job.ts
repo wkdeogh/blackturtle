@@ -89,7 +89,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
       message = source === "macro"
         ? "매크로 데이터를 가져오는 중입니다. 페이지를 나가도 계속 진행됩니다…"
         : source === "market"
-          ? "시장 데이터를 가져오는 중입니다. 무료 API 호출 한도를 지키기 위해 약 1분 정도 걸립니다. 페이지를 나가도 계속 진행됩니다…"
+          ? "시장 데이터를 가져오는 중입니다. 공급원 호출 한도를 지키며 처리하고 있고 페이지를 나가도 계속 진행됩니다…"
           : "X 데이터 작업을 처리하는 중입니다. 페이지를 나가도 계속 진행됩니다…";
     } else {
       message = "갱신 작업이 대기열에서 시작을 기다리고 있습니다. 페이지를 나가도 됩니다…";

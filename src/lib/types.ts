@@ -32,6 +32,7 @@ export interface MarketSeries {
   symbol: string;
   group: MarketSeriesGroup;
   instrumentType: MarketInstrumentType;
+  interval: "daily" | "weekly";
   benchmark?: string;
   currency: string;
   decimals: number;
@@ -47,7 +48,7 @@ export interface MarketSeries {
 }
 
 export interface MarketSnapshot {
-  provider: "Twelve Data";
+  provider: "Twelve Data" | "Alpha Vantage";
   peakWindowYears: 3;
   series: MarketSeries[];
   countryEtfs: MarketSeries[];

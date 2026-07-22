@@ -101,9 +101,9 @@ git remote -v</code></pre>
           <label class="check"><input type="checkbox" data-check><span><b>API Key 발급</b><span>API Keys 화면에서 새 키를 생성하고 비밀번호 관리자 등 안전한 곳에 보관합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>첫 지표 목록 확인</b><span>권장 시작값: DGS2, DGS10, T10Y2Y, FEDFUNDS, CPIAUCSL, UNRATE, PAYEMS, M2SL, VIXCLS, DCOILWTICO. 빼거나 더할 지표를 메모합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>WTI 선물 API 준비(선택)</b><span>Massive의 Futures Basic 무료 플랜에서 API 키를 만들고 <code>MASSIVE_API_KEY</code>로 등록하면 WTI 최근월물 선물가격도 함께 수집됩니다. 키가 없으면 현물과 기존 매크로만 정상 갱신됩니다.</span></span></label>
-          <label class="check"><input type="checkbox" data-check><span><b>시장지수 API 준비(필수)</b><span>Twelve Data의 Basic 무료 플랜에서 API 키를 만들고 <code>TWELVE_DATA_API_KEY</code>로 등록합니다. 시장지수 갱신은 무료 한도 8 credits/분을 지키기 위해 두 묶음으로 나누며 약 1분 걸립니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>시장지수 API 준비(둘 중 하나 필수)</b><span>무료 우선이면 Alpha Vantage 키를 <code>ALPHA_VANTAGE_API_KEY</code>로 등록합니다. 무료 한도는 25회/일이고 전체 갱신 1회가 11회를 사용하며 주간 시계열을 저장합니다. 일간 시계열이 필요하면 <code>TWELVE_DATA_API_KEY</code>를 대신 쓸 수 있지만 현재 표시 데이터 이용 조건은 직접 확인하세요. 두 키가 모두 있으면 Alpha Vantage를 우선합니다.</span></span></label>
           <div class="box"><h3>주의</h3><p>FRED 시리즈 중에는 제3자 저작권 제한이 있는 데이터도 있습니다. 개인용 범위를 넘어 공개 서비스로 확장할 때는 각 시리즈 notes와 이용 조건을 다시 확인합니다.</p></div>
-          <div class="links"><a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noreferrer">FRED API Key 안내 ↗</a><a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer">Twelve Data 무료 가입 ↗</a><a href="https://massive.com/pricing?product=futures" target="_blank" rel="noreferrer">Massive Futures 가입 ↗</a><a href="https://fred.stlouisfed.org/docs/api/fred/series_observations.html" target="_blank" rel="noreferrer">Series Observations ↗</a><a href="https://fred.stlouisfed.org/docs/api/terms_of_use.html" target="_blank" rel="noreferrer">이용 조건 ↗</a></div>
+          <div class="links"><a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noreferrer">FRED API Key 안내 ↗</a><a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noreferrer">Alpha Vantage 무료 키 ↗</a><a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer">Twelve Data 요금·조건 ↗</a><a href="https://massive.com/pricing?product=futures" target="_blank" rel="noreferrer">Massive Futures 가입 ↗</a><a href="https://fred.stlouisfed.org/docs/api/fred/series_observations.html" target="_blank" rel="noreferrer">Series Observations ↗</a><a href="https://fred.stlouisfed.org/docs/api/terms_of_use.html" target="_blank" rel="noreferrer">이용 조건 ↗</a></div>
         </div>
       </section>
 
@@ -151,7 +151,8 @@ AUTH_SECRET=            # openssl rand -base64 48 로 생성
 SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 FRED_API_KEY=
-TWELVE_DATA_API_KEY=   # 필수: 시장지수 탭, Basic 무료 플랜 사용 가능
+ALPHA_VANTAGE_API_KEY= # 시장지수 무료 권장: 주간 데이터, 갱신당 11/일일 25회
+TWELVE_DATA_API_KEY=   # 선택 대안: 일간 데이터, 현재 표시 이용 조건 확인
 MASSIVE_API_KEY=       # 선택: WTI 최근월물 선물가격
 X_BEARER_TOKEN=
 OPENAI_API_KEY=         # X 게시물 기업·감성 분석
@@ -173,7 +174,7 @@ X_TOTAL_POST_LIMIT=       # 선택: 비우면 무제한</code></pre>
         <div class="content">
           <label class="check"><input type="checkbox" data-check><span><b>로그인 전 접근 차단</b><span>시크릿 창에서 대시보드가 비밀번호 화면으로 이동하고, 갱신 API 직접 호출은 401로 차단되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>첫 접속 빈 상태</b><span>DB가 비어 있을 때 샘플 수치 대신 “데이터 없음”이 보이는지 확인합니다.</span></span></label>
-          <label class="check"><input type="checkbox" data-check><span><b>소스별 수동 갱신</b><span><code>매크로</code> 탭에서는 FRED 경제 지표와 CNN 공포·탐욕 지수를 함께 갱신합니다. <code>시장지수</code> 탭은 Twelve Data에서 주요 자산과 국가 ETF를 갱신하며 약 1분 걸립니다. <code>X 모니터링</code> 탭에서는 X 원문 수집과 저장 데이터 LLM 재분석이 분리됩니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>소스별 수동 갱신</b><span><code>매크로</code> 탭에서는 FRED 경제 지표와 CNN 공포·탐욕 지수를 함께 갱신합니다. <code>시장지수</code> 탭은 선택한 공급원에서 주요 자산과 국가 ETF를 갱신합니다. <code>X 모니터링</code> 탭에서는 X 원문 수집과 저장 데이터 LLM 재분석이 분리됩니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>재접속과 장애 복구</b><span>재접속해도 이전 데이터가 남고, 잘못된 테스트 키로 갱신 실패 시에도 기존 스냅샷이 유지되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>지속 갱신 확인</b><span>갱신을 시작한 직후 페이지를 새로고침하거나 다른 탭으로 이동해도 상단의 갱신 상태가 유지되고, 완료 후 새 데이터와 히스토리가 표시되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>모바일 확인</b><span>실제 휴대폰에서 로그인, 스크롤, 필터, 갱신 버튼, X 원문 이동을 확인합니다.</span></span></label>

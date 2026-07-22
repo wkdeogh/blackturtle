@@ -1,10 +1,10 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-import type { MarketInstrumentType, MarketSeries, MarketSeriesGroup } from "@/lib/types";
+import type { MarketInstrumentType, MarketPoint, MarketSeries, MarketSeriesGroup } from "@/lib/types";
 
 const TWELVE_DATA_TIME_SERIES_URL = "https://api.twelvedata.com/time_series";
 const MARKET_OUTPUT_SIZE = 1200;
 
-interface MarketDefinition {
+export interface MarketDefinition {
   id: string;
   label: string;
   symbol: string;
@@ -28,6 +28,7 @@ interface TwelveDataSeriesResponse {
 }
 
 export interface MarketBatchResult {
+  provider: "Twelve Data" | "Alpha Vantage";
   series: MarketSeries[];
   warnings: string[];
 }
@@ -62,23 +63,8 @@ function readSeriesPayload(payload: unknown, definition: MarketDefinition, batch
     : null;
 }
 
-function buildMarketSeries(definition: MarketDefinition, body: TwelveDataSeriesResponse): MarketSeries {
-  if (body.status === "error" || !Array.isArray(body.values)) {
-    throw new Error(body.message ?? "시계열을 받지 못했습니다.");
-  }
-
-  const byDate = new Map<string, number>();
-  for (const point of body.values) {
-    const date = point.datetime?.slice(0, 10);
-    const value = Number(point.close);
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(value)) continue;
-    byDate.set(date, value);
-  }
-  const allPoints = [...byDate.entries()]
-    .map(([date, value]) => ({ date, value }))
-    .sort((left, right) => left.date.localeCompare(right.date));
-  if (allPoints.length < 2) throw new Error("유효한 일간 종가가 부족합니다.");
-
+export function buildMarketSeries(definition: MarketDefinition, allPoints: MarketPoint[], interval: "daily" | "weekly"): MarketSeries {
+  if (allPoints.length < 2) throw new Error("유효한 종가가 부족합니다.");
   const last = allPoints.at(-1)!;
   const cutoff = new Date(`${last.date}T00:00:00Z`);
   cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 3);
@@ -95,6 +81,7 @@ function buildMarketSeries(definition: MarketDefinition, body: TwelveDataSeriesR
     symbol: definition.symbol,
     group: definition.group,
     instrumentType: definition.instrumentType,
+    interval,
     benchmark: definition.benchmark,
     currency: definition.currency,
     decimals: definition.decimals,
@@ -110,11 +97,29 @@ function buildMarketSeries(definition: MarketDefinition, body: TwelveDataSeriesR
   };
 }
 
+function buildTwelveDataSeries(definition: MarketDefinition, body: TwelveDataSeriesResponse): MarketSeries {
+  if (body.status === "error" || !Array.isArray(body.values)) {
+    throw new Error(body.message ?? "시계열을 받지 못했습니다.");
+  }
+
+  const byDate = new Map<string, number>();
+  for (const point of body.values) {
+    const date = point.datetime?.slice(0, 10);
+    const value = Number(point.close);
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(value)) continue;
+    byDate.set(date, value);
+  }
+  const allPoints = [...byDate.entries()]
+    .map(([date, value]) => ({ date, value }))
+    .sort((left, right) => left.date.localeCompare(right.date));
+  return buildMarketSeries(definition, allPoints, "daily");
+}
+
 export async function collectMarketBatch(apiKey: string, definitionIds: string[]): Promise<MarketBatchResult> {
   const definitions = definitionIds
     .map((id) => MARKET_DEFINITIONS.find((definition) => definition.id === id))
     .filter((definition): definition is MarketDefinition => Boolean(definition));
-  if (!definitions.length) return { series: [], warnings: [] };
+  if (!definitions.length) return { provider: "Twelve Data", series: [], warnings: [] };
 
   const params = new URLSearchParams({
     symbol: definitions.map((definition) => definition.symbol).join(","),
@@ -140,12 +145,12 @@ export async function collectMarketBatch(apiKey: string, definitionIds: string[]
     const body = readSeriesPayload(payload, definition, definitions.length);
     try {
       if (!body) throw new Error("응답에서 심볼을 찾지 못했습니다.");
-      series.push(buildMarketSeries(definition, body));
+      series.push(buildTwelveDataSeries(definition, body));
     } catch (error) {
       const message = error instanceof Error ? error.message : "알 수 없는 오류";
       warnings.push(`${definition.label} (${definition.symbol}): ${message}`.slice(0, 240));
     }
   }
   if (!series.length) throw new Error(warnings.join(" · ") || "수집된 시장 데이터가 없습니다.");
-  return { series, warnings };
+  return { provider: "Twelve Data", series, warnings };
 }

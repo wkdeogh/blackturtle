@@ -1,4 +1,5 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
+import { collectAlphaVantageMarketBatch } from "@/lib/alpha-vantage-market-data";
 import { collectMarketBatch, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, type MarketBatchResult } from "@/lib/market-data";
 import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
@@ -47,16 +48,16 @@ async function collectMacroAndStoreDraft(runId: string) {
 
 async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  const apiKey = process.env.TWELVE_DATA_API_KEY;
-  if (!apiKey) throw new Error("설정되지 않은 환경 변수: TWELVE_DATA_API_KEY");
-  return collectMarketBatch(apiKey, MARKET_PRIMARY_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_PRIMARY_IDS);
+  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_PRIMARY_IDS);
+  throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
 }
 
 async function collectCountryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  const apiKey = process.env.TWELVE_DATA_API_KEY;
-  if (!apiKey) throw new Error("설정되지 않은 환경 변수: TWELVE_DATA_API_KEY");
-  return collectMarketBatch(apiKey, MARKET_COUNTRY_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_COUNTRY_IDS);
+  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_COUNTRY_IDS);
+  throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
 }
 
 // 무료 플랜의 분당 크레딧을 소진하는 단계라 동일 요청을 자동 반복하지 않는다.
@@ -80,7 +81,7 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
     socialAnalyzedAt: previous?.payload.socialAnalyzedAt,
     macro: previous?.payload.macro ?? [],
     market: {
-      provider: "Twelve Data",
+      provider: primary.provider,
       peakWindowYears: 3,
       series: primary.series.filter((series) => series.group === "market"),
       countryEtfs: countries.series.filter((series) => series.group === "country"),
@@ -292,12 +293,15 @@ export async function refreshDataWorkflow(
       const primary = await collectPrimaryMarketData();
       stage = "주요 시장지수 우선 저장";
       await storeMarketDraft(runId, primary, {
+        provider: primary.provider,
         series: [],
         warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
       });
       await setRefreshStage(runId, "collecting");
-      stage = "무료 API 호출 한도 대기";
-      await sleep("61s");
+      if (primary.provider === "Twelve Data") {
+        stage = "무료 API 호출 한도 대기";
+        await sleep("61s");
+      }
       stage = "국가 ETF 수집";
       const countries = await collectCountryMarketData();
       stage = "시장 데이터 임시 저장";
