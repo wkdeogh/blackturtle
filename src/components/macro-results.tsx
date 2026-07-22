@@ -2,7 +2,7 @@ import { FearGreedCard } from "@/components/fear-greed-card";
 import { MacroCard } from "@/components/macro-card";
 import type { MacroSeries } from "@/lib/types";
 
-const PRIORITY = new Map([["VIXCLS", 0], ["T10Y2Y", 1]]);
+const PRIORITY = new Map([["VIXCLS", 0], ["T10Y2Y", 1], ["DCOILWTICO", 2]]);
 
 export function MacroResults({ series }: { series: MacroSeries[] }) {
   const fearGreed = series.find((item) => item.id === "CNN_FEAR_GREED");

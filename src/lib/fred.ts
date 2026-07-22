@@ -22,6 +22,7 @@ const SERIES: FredDefinition[] = [
   { id: "PAYEMS", label: "비농업 고용", group: "고용", unit: "천 명", decimals: 0, observationLimit: 60, description: "농업을 제외한 미국 사업체의 전체 고용 인원 수준입니다.", readingGuide: "꾸준한 증가는 수요를 지지합니다. 증가세 둔화나 감소가 이어지면 고용 모멘텀 약화를 의심합니다." },
   { id: "M2SL", label: "M2 통화량", group: "유동성", unit: "십억 달러", decimals: 1, observationLimit: 60, description: "현금·요구불예금·저축성 예금 등을 합친 넓은 의미의 통화량입니다.", readingGuide: "지속적인 증가는 위험자산 유동성에 우호적일 수 있지만 단독 매매 타이밍 지표로 쓰지는 않습니다." },
   { id: "VIXCLS", label: "VIX 변동성 지수", group: "시장 심리", unit: "pt", decimals: 2, observationLimit: 260, description: "S&P 500 옵션 가격에 반영된 향후 약 30일의 기대 변동성입니다.", readingGuide: "20 위로 빠르게 오르면 불안 확대를, 30 이상은 강한 위험회피를 의심합니다. 절대값과 상승 속도를 함께 봅니다." },
+  { id: "DCOILWTICO", label: "WTI 원유 가격", group: "원자재", unit: "달러/배럴", decimals: 2, observationLimit: 260, description: "미국 오클라호마 쿠싱에서 거래되는 서부 텍사스산 원유(WTI)의 일간 현물가격입니다.", readingGuide: "상승은 에너지 기업에 우호적일 수 있지만 물가와 운송·제조 비용에는 부담입니다. 급락은 공급 증가뿐 아니라 경기와 원유 수요 약화 신호일 수 있어 원인도 함께 봅니다." },
 ];
 
 export const FRED_GUIDES = Object.fromEntries(
