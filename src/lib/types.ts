@@ -61,6 +61,14 @@ export interface MentionSummary {
   lastMentionAt: string;
 }
 
+export interface TopicSummary {
+  title: string;
+  summary: string;
+  keywords: string[];
+  postCount: number;
+  postIds: string[];
+}
+
 export interface XAccountCursor {
   username: string;
   userId: string;
@@ -76,6 +84,9 @@ export interface DashboardSnapshot {
   macro: MacroSeries[];
   social: {
     analysisModel?: string;
+    topicModel?: string;
+    topicSummaryError?: string;
+    topics?: TopicSummary[];
     periodDays: number;
     accounts: XAccountCursor[];
     posts: SocialPost[];

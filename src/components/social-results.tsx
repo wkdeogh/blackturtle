@@ -1,16 +1,32 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { MentionSummary, SocialPost } from "@/lib/types";
+import type { MentionSummary, SocialPost, TopicSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 
 interface SocialResultsData {
   analysisModel?: string;
+  topicModel?: string;
+  topicSummaryError?: string;
+  topics?: TopicSummary[];
   periodDays: number;
   accounts: Array<{ username: string }>;
   posts: SocialPost[];
   companies: MentionSummary[];
   analyzedPostCount: number;
+}
+
+function TopicCard({ topic, rank, maxCount, postsById }: { topic: TopicSummary; rank: number; maxCount: number; postsById: Map<string, SocialPost> }) {
+  const accounts = [...new Set(topic.postIds.map((id) => postsById.get(id)?.username).filter((value): value is string => Boolean(value)))];
+  return (
+    <article className="topic-card">
+      <div className="topic-card-head"><span>{String(rank).padStart(2, "0")}</span><strong>{topic.postCount}개 게시물</strong></div>
+      <h3>{topic.title}</h3>
+      <p>{topic.summary}</p>
+      <div className="topic-frequency" aria-label={`관련 게시물 ${topic.postCount}개`}><i style={{ width: `${Math.max(8, (topic.postCount / Math.max(1, maxCount)) * 100)}%` }} /></div>
+      <div className="topic-meta"><div>{topic.keywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><small>{accounts.length ? accounts.map((account) => `@${account}`).join(" · ") : "전체 계정"}</small></div>
+    </article>
+  );
 }
 
 function aggregateCompanies(posts: SocialPost[]): MentionSummary[] {
@@ -88,14 +104,22 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
   const posts = expanded ? filteredPosts : filteredPosts.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
+  const topics = social.topics ?? [];
+  const postsById = useMemo(() => new Map(social.posts.map((post) => [post.id, post])), [social.posts]);
+  const maxTopicCount = topics[0]?.postCount ?? 1;
   return (
     <>
+      <section className="section-block topic-section">
+        <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>전체 계정 · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "다음 수집부터 생성"}</p></div>
+        {topics.length ? <div className="topic-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "기존 결과입니다. 다음 X 수집부터 주요 주제 요약이 생성됩니다."}</div>}
+        <p className="topic-footnote">게시물 하나가 여러 주제와 관련되면 각 주제에 함께 집계될 수 있습니다. 전체 수집 게시물의 공통 흐름을 요약하며 투자 조언이 아닙니다.</p>
+      </section>
       <section className="result-filter" aria-label="X 결과 계정 필터">
         <div><span>ACCOUNT VIEW</span><strong>{accountLabel}</strong><small>기업 언급과 게시물을 같은 계정 기준으로 필터링합니다.</small></div>
         <label htmlFor="social-account-filter">계정 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((username) => <option value={username} key={username}>@{username}</option>)}</select></label>
       </section>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">01 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · {filteredPosts.length}개 게시물</p></div>
+        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · {filteredPosts.length}개 게시물</p></div>
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
@@ -111,7 +135,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">02 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{accountLabel} · 최신순 · reply와 repost 제외</p></div>
+        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{accountLabel} · 최신순 · reply와 repost 제외</p></div>
         <div className="post-grid">{posts.map((post) => <PostCard post={post} key={post.id} />)}</div>
         {!filteredPosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>

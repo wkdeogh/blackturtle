@@ -1,7 +1,8 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
-import type { DashboardSnapshot, MacroSeries, RefreshSource } from "@/lib/types";
+import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
+import type { DashboardSnapshot, MacroSeries, RefreshSource, TopicSummary } from "@/lib/types";
 import { finalizeXCollection, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
 
 interface SocialWorkflowContext {
@@ -9,6 +10,12 @@ interface SocialWorkflowContext {
   macro: MacroSeries[];
   macroUpdatedAt?: string;
   prepared: PreparedXCollection;
+}
+
+interface TopicStepResult {
+  model: string;
+  topics: TopicSummary[];
+  error?: string;
 }
 
 async function setRefreshStage(runId: string, stage: "collecting" | "saving") {
@@ -70,15 +77,32 @@ async function analyzeSocialBatch(posts: RawSocialPost[], model: string): Promis
 // 시간 초과된 요청도 OpenAI에서 처리됐을 수 있으므로 자동 재호출하지 않는다.
 analyzeSocialBatch.maxRetries = 0;
 
+async function analyzeSocialTopics(posts: RawSocialPost[]): Promise<TopicStepResult> {
+  "use step";
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_TOPIC_MODEL ?? "gpt-5-mini";
+  if (!apiKey) return { model, topics: [], error: "설정되지 않은 환경 변수: OPENAI_API_KEY" };
+  try {
+    return { model, topics: await analyzeTopicsWithOpenAI(posts, apiKey, model) };
+  } catch (error) {
+    return { model, topics: [], error: refreshErrorMessage(error) };
+  }
+}
+
+// 주제 요약도 유료 호출이므로 Workflow 수준의 자동 재호출은 하지 않는다.
+analyzeSocialTopics.maxRetries = 0;
+
 async function storeSocialDraft(
   runId: string,
   context: SocialWorkflowContext,
   analysis: PostAnalysisResult[],
+  topicResult: TopicStepResult,
 ) {
   "use step";
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
 
+  const social = finalizeXCollection(context.prepared, analysis);
   const snapshot: DashboardSnapshot = {
     version: 1,
     generatedAt: context.generatedAt,
@@ -86,7 +110,12 @@ async function storeSocialDraft(
     macroUpdatedAt: context.macroUpdatedAt,
     socialUpdatedAt: context.generatedAt,
     macro: context.macro,
-    social: finalizeXCollection(context.prepared, analysis),
+    social: {
+      ...social,
+      topicModel: topicResult.model,
+      topicSummaryError: topicResult.error,
+      topics: topicResult.topics,
+    },
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
@@ -132,8 +161,10 @@ export async function refreshDataWorkflow(runId: string, source: RefreshSource) 
           context.prepared.analysisModel,
         ));
       }
+      stage = "전체 주제 요약";
+      const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
       stage = "수집 결과 임시 저장";
-      await storeSocialDraft(runId, context, analysis);
+      await storeSocialDraft(runId, context, analysis, topicResult);
       generatedAt = context.generatedAt;
     }
     stage = "스냅샷 저장";
