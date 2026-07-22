@@ -87,6 +87,8 @@ For every input post:
 - Identify each publicly traded company that is explicitly mentioned by ticker, company name, or an unambiguous flagship product or executive reference.
 - Use the canonical uppercase US ticker. Do not treat ETFs, indices, cryptocurrencies, private companies, or generic industry terms as companies.
 - Judge sentiment separately for each company from an investor's perspective: positive means the statement is favorable to the company, business outlook, or stock; negative means unfavorable; neutral means factual, mixed, uncertain, a question, or lacking directional judgment.
+- If a company appears only as a ticker or tag and the post neither explicitly states nor reasonably establishes an implication for that company, classify it as neutral. Do not transfer another company's sentiment to it merely because its ticker is present.
+- Do not classify sentiment from isolated words such as "worst", "shortage", or "decline". Judge the statement's actual implications for that specific company's demand, pricing power, revenue, and costs.
 - Treat a past stock-price move by itself (for example, that a stock rose or fell by a stated percentage yesterday or overnight) as neutral, regardless of the move's direction. If the post also adds a materially positive or negative cause, evaluation, implication, outlook, or recommendation, classify sentiment from that added meaning rather than from the historical price move alone.
 - Handle negation, comparisons, quoted claims, sarcasm, and mixed statements using the full context.
 - Evidence must be a concise excerpt or paraphrase grounded only in the post, at most 220 characters.
