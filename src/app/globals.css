@@ -43,7 +43,7 @@ html[data-theme="light"] {
 * { box-sizing: border-box; }
 html { background: var(--paper); scroll-behavior: smooth; }
 body { margin: 0; color: var(--ink); background: var(--paper); font-family: Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; line-height: 1.55; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; }
 .page-shell { width: min(1180px, calc(100% - 36px)); margin: 0 auto; }
@@ -344,6 +344,10 @@ a { color: inherit; }
 .analysis-action button { width: 100%; }
 .analysis-action > p { margin: 8px 0 0; color: var(--green-2); font-size: 9px; }
 .analysis-action > p.error { color: var(--red); }
+.analysis-manual-actions { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.analysis-manual-actions > span { display: block; margin-bottom: 7px; color: var(--muted); font-size: 8px; font-weight: 900; }
+.analysis-manual-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.analysis-manual-actions button { min-height: 40px; padding: 0 8px; font-size: 9px; }
 .analysis-empty { min-height: 420px; }
 .analysis-report { margin-top: 54px; }
 .analysis-stale { margin-bottom: 14px; border: 1px solid #66512d; border-radius: 12px; padding: 12px 14px; color: #e3c58d; background: #231d13; font-size: 10px; }
@@ -412,12 +416,21 @@ a { color: inherit; }
 .analysis-token-count { display: flex; align-items: baseline; gap: 7px; margin: 22px 0; border-block: 1px solid var(--line); padding: 17px 0; }
 .analysis-token-count span, .analysis-token-count small { color: var(--muted); font-size: 10px; }
 .analysis-token-count strong { color: var(--green-2); font-family: Georgia, serif; font-size: 43px; font-weight: 500; line-height: 1; }
+.analysis-token-count.compact { margin: 16px 0; padding: 12px 0; }
+.analysis-token-count.compact strong { font-size: 30px; }
 .analysis-modal dl { margin: 0; }
 .analysis-modal dl div { display: grid; grid-template-columns: 85px 1fr; gap: 12px; border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 10px; }
 .analysis-modal dt { color: var(--muted); }
 .analysis-modal dd { margin: 0; font-weight: 800; text-align: right; }
 .analysis-modal aside { margin-top: 16px; border-radius: 10px; padding: 11px; color: #e3c58d; background: #231d13; font-size: 9px; }
 .analysis-modal-actions { display: grid; grid-template-columns: 1fr 1.5fr; gap: 8px; margin-top: 19px; }
+.analysis-manual-modal { width: min(720px, 100%); }
+.analysis-manual-modal > label { display: block; margin: 14px 0 6px; color: var(--muted); font-size: 9px; font-weight: 900; }
+.analysis-manual-modal > input, .analysis-manual-modal > textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px; color: var(--ink); outline: 0; background: var(--input-bg); }
+.analysis-manual-modal > input:focus, .analysis-manual-modal > textarea:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(105,195,151,.14); }
+.analysis-manual-modal > input { height: 44px; }
+.analysis-manual-modal > textarea { min-height: 260px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; line-height: 1.55; }
+.analysis-modal > p.analysis-modal-error { margin-top: 10px; color: var(--red); font-size: 10px; font-weight: 800; }
 .signal-grid { display: grid; grid-template-columns: minmax(0, 1fr) 265px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); }
 .company-board { padding: 8px 22px 12px; }
 .board-head, .company-row { display: grid; grid-template-columns: 34px minmax(176px, .85fr) minmax(260px, 1fr) 70px; gap: 14px; align-items: center; }

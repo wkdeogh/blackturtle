@@ -14,7 +14,26 @@ interface Preview {
   dataCounts: { macro: number; market: number; posts: number };
 }
 
+interface ManualPrompt {
+  prompt: string;
+  snapshotId: string;
+  estimatedInputTokens: number;
+}
+
 function number(value: number): string { return new Intl.NumberFormat("ko-KR").format(value); }
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("클립보드 복사 권한을 확인하세요.");
+}
 
 const MODEL_DESCRIPTIONS: Record<OpenAIComprehensiveModel, string> = {
   "gpt-5.6-sol": "최고 성능",
@@ -78,6 +97,13 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
   const [run, setRun] = useState(initialRun);
   const [selectedModel, setSelectedModel] = useState<OpenAIComprehensiveModel>(analysisModel);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [manualPrompt, setManualPrompt] = useState<ManualPrompt | null>(null);
+  const [manualResultOpen, setManualResultOpen] = useState(false);
+  const [manualResult, setManualResult] = useState("");
+  const [manualSourceModel, setManualSourceModel] = useState("");
+  const [manualPromptLoading, setManualPromptLoading] = useState(false);
+  const [manualImporting, setManualImporting] = useState(false);
+  const [manualNotice, setManualNotice] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
@@ -130,20 +156,67 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
     finally { setStarting(false); }
   }
 
+  async function requestManualPrompt() {
+    setManualPromptLoading(true); setError(""); setManualNotice("");
+    try {
+      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "manual-prompt" }) });
+      const body = (await response.json()) as ManualPrompt & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "수동 분석 프롬프트를 만들지 못했습니다.");
+      setManualPrompt(body);
+      try {
+        await copyText(body.prompt);
+        setManualNotice(`프롬프트를 복사했습니다 · 예상 입력 약 ${number(body.estimatedInputTokens)} tokens`);
+      } catch {
+        setManualNotice("프롬프트를 만들었습니다. 창 안의 복사 버튼을 눌러주세요.");
+      }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "수동 분석 프롬프트를 만들지 못했습니다."); }
+    finally { setManualPromptLoading(false); }
+  }
+
+  async function copyManualPrompt() {
+    if (!manualPrompt) return;
+    setError("");
+    try { await copyText(manualPrompt.prompt); setManualNotice("프롬프트를 클립보드에 복사했습니다."); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "프롬프트를 복사하지 못했습니다."); }
+  }
+
+  async function importManualResult() {
+    if (!manualResult.trim()) return;
+    setManualImporting(true); setError(""); setManualNotice("");
+    try {
+      const response = await fetch("/api/comprehensive-analysis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "manual-import", result: manualResult, sourceModel: manualSourceModel }) });
+      const body = (await response.json()) as { run?: ComprehensiveAnalysisRunStatus | null; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "수동 분석 결과를 저장하지 못했습니다.");
+      setManualResultOpen(false);
+      setManualResult("");
+      setManualSourceModel("");
+      setManualNotice("붙여넣은 분석 결과로 리포트를 업데이트했습니다.");
+      applyRun(body.run ?? null);
+      router.refresh();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "수동 분석 결과를 저장하지 못했습니다."); }
+    finally { setManualImporting(false); }
+  }
+
   const running = run?.status === "running";
   const disabled = !migrationReady || !hasData || loadingPreview || starting || running;
+  const manualPromptDisabled = !hasData || manualPromptLoading || running;
+  const manualImportDisabled = !migrationReady || running || manualImporting;
   const status = running ? (run.stage === "saving" ? "분석 결과를 저장하는 중입니다. 페이지를 나가도 계속됩니다…" : `${run.model}이 종합분석 리포트를 작성 중입니다. 페이지를 나가도 계속됩니다…`) : run?.status === "failed" ? `최근 분석 실패: ${run.error ?? "알 수 없는 오류"}` : error;
 
   return <>
     <section className="analysis-action-card">
-      <div><p className="kicker">ON-DEMAND ANALYSIS</p><h2>현재 저장 데이터 종합분석</h2><p>매크로 시계열, 시장지수와 ETF 가격, X 게시물·기업 언급·주제 결과를 하나의 프롬프트로 분석합니다. 버튼을 누르기 전에는 비용이 발생하지 않습니다.</p></div>
-      <div className="analysis-action"><label htmlFor="comprehensive-model">MODEL</label><select id="comprehensive-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value as OpenAIComprehensiveModel)} disabled={running || loadingPreview || starting}>{OPENAI_COMPREHENSIVE_MODELS.map((model) => <option value={model} key={model}>{model} · {MODEL_DESCRIPTIONS[model]}</option>)}</select><small>{MODEL_DESCRIPTIONS[selectedModel]} · reasoning medium</small><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "분석하기"}</button>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : null}</div>
+      <div><p className="kicker">ON-DEMAND ANALYSIS</p><h2>현재 저장 데이터 종합분석</h2><p>OpenAI API로 바로 분석하거나, 프롬프트를 복사해 구독 중인 AI에서 직접 분석한 결과를 다시 저장할 수 있습니다.</p></div>
+      <div className="analysis-action"><label htmlFor="comprehensive-model">OPENAI API MODEL</label><select id="comprehensive-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value as OpenAIComprehensiveModel)} disabled={running || loadingPreview || starting}>{OPENAI_COMPREHENSIVE_MODELS.map((model) => <option value={model} key={model}>{model} · {MODEL_DESCRIPTIONS[model]}</option>)}</select><small>{MODEL_DESCRIPTIONS[selectedModel]} · reasoning medium</small><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "API로 분석"}</button><div className="analysis-manual-actions"><span>구독 중인 AI 직접 사용 · API 비용 없음</span><div><button className="secondary-button" type="button" onClick={() => void requestManualPrompt()} disabled={manualPromptDisabled}>{manualPromptLoading ? "생성 중…" : "프롬프트 복사"}</button><button className="secondary-button" type="button" onClick={() => { setError(""); setManualResultOpen(true); }} disabled={manualImportDisabled}>결과 입력</button></div></div>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : manualNotice ? <p role="status">{manualNotice}</p> : null}</div>
     </section>
 
     {!migrationReady ? <aside className="setup-alert"><div><span className="alert-dot" /><strong>종합분석 저장 설정이 필요합니다</strong></div><p>Supabase SQL Editor에서 <code>202607220011_comprehensive_analysis.sql</code>을 실행하세요.</p></aside> : null}
 
-    {initialReport ? <ComprehensiveReport stored={initialReport} currentSnapshotId={currentSnapshotId} /> : <section className="empty-state analysis-empty"><div className="empty-orbit"><span>0</span></div><p className="kicker">NO REPORT YET</p><h2>아직 저장된 종합분석이 없습니다.</h2><p>데이터를 갱신한 뒤 분석하기를 누르면 예상 토큰을 먼저 확인할 수 있습니다.</p></section>}
+    {initialReport ? <ComprehensiveReport stored={initialReport} currentSnapshotId={currentSnapshotId} /> : <section className="empty-state analysis-empty"><div className="empty-orbit"><span>0</span></div><p className="kicker">NO REPORT YET</p><h2>아직 저장된 종합분석이 없습니다.</h2><p>API로 분석하거나 프롬프트를 복사해 외부 AI 결과를 저장할 수 있습니다.</p></section>}
 
     {preview ? <div className="analysis-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !starting) setPreview(null); }}><section className="analysis-modal" role="dialog" aria-modal="true" aria-labelledby="analysis-confirm-title"><p className="kicker">COST CONFIRMATION</p><h2 id="analysis-confirm-title">종합분석을 실행할까요?</h2><p>현재 저장 데이터를 직렬화한 <b>예상 입력 토큰</b>입니다. 실제 사용량과 요금은 모델 토크나이저 및 reasoning·응답 길이에 따라 달라집니다.</p><div className="analysis-token-count"><span>약</span><strong>{number(preview.estimatedInputTokens)}</strong><small>입력 tokens</small></div><dl><div><dt>모델</dt><dd>{preview.model} · reasoning medium</dd></div><div><dt>포함 데이터</dt><dd>매크로 {preview.dataCounts.macro}개 · 시장 {preview.dataCounts.market}개 · 게시물 {preview.dataCounts.posts}개</dd></div><div><dt>출력 상한</dt><dd>reasoning 포함 최대 {number(preview.maxOutputTokens)} tokens</dd></div></dl><aside>확인을 누를 때만 OpenAI 유료 호출이 시작됩니다. 작업 중 페이지를 나가도 계속 진행되며 자동 재호출은 하지 않습니다.</aside><div className="analysis-modal-actions"><button className="secondary-button" type="button" onClick={() => setPreview(null)} disabled={starting}>취소</button><button className="combined-button" type="button" onClick={() => void startAnalysis()} disabled={starting}>{starting ? "시작 중…" : "확인 후 분석 시작"}</button></div></section></div> : null}
+
+    {manualPrompt ? <div className="analysis-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setManualPrompt(null); }}><section className="analysis-modal analysis-manual-modal" role="dialog" aria-modal="true" aria-labelledby="manual-prompt-title"><p className="kicker">MANUAL AI PROMPT</p><h2 id="manual-prompt-title">구독 중인 AI에 입력하세요</h2><p>아래 프롬프트에는 현재 저장된 대시보드 데이터와 출력 형식이 모두 포함돼 있습니다. AI가 돌려준 JSON 결과 전체를 복사하세요.</p><div className="analysis-token-count compact"><span>예상 입력</span><strong>{number(manualPrompt.estimatedInputTokens)}</strong><small>tokens</small></div><label htmlFor="manual-analysis-prompt">종합분석 프롬프트</label><textarea id="manual-analysis-prompt" readOnly value={manualPrompt.prompt} />{error ? <p className="analysis-modal-error" role="alert">{error}</p> : null}<aside>프롬프트 안의 <code>source_snapshot_id</code>를 변경하지 마세요. 이 값으로 분석 결과와 원본 데이터를 정확히 연결합니다.</aside><div className="analysis-modal-actions"><button className="secondary-button" type="button" onClick={() => setManualPrompt(null)}>닫기</button><button className="combined-button" type="button" onClick={() => void copyManualPrompt()}>프롬프트 다시 복사</button></div></section></div> : null}
+
+    {manualResultOpen ? <div className="analysis-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !manualImporting) { setError(""); setManualResultOpen(false); } }}><section className="analysis-modal analysis-manual-modal" role="dialog" aria-modal="true" aria-labelledby="manual-result-title"><p className="kicker">IMPORT AI RESULT</p><h2 id="manual-result-title">분석 결과 입력</h2><p>AI가 반환한 JSON 전체를 붙여넣으면 형식을 검사한 뒤 기존 종합분석 리포트를 업데이트합니다.</p><label htmlFor="manual-source-model">사용한 AI 또는 모델</label><input id="manual-source-model" type="text" maxLength={70} value={manualSourceModel} onChange={(event) => setManualSourceModel(event.target.value)} placeholder="예: ChatGPT GPT-5.6 Sol" /><label htmlFor="manual-analysis-result">AI 분석 결과</label><textarea id="manual-analysis-result" value={manualResult} onChange={(event) => setManualResult(event.target.value)} placeholder="{ &quot;source_snapshot_id&quot;: &quot;...&quot;, &quot;report&quot;: { ... } }" />{error ? <p className="analysis-modal-error" role="alert">{error}</p> : null}<aside>이 저장 과정에서는 LLM API를 호출하지 않습니다. JSON 형식과 필수 항목이 맞지 않으면 저장하지 않고 오류 내용을 보여줍니다.</aside><div className="analysis-modal-actions"><button className="secondary-button" type="button" onClick={() => { setError(""); setManualResultOpen(false); }} disabled={manualImporting}>취소</button><button className="combined-button" type="button" onClick={() => void importManualResult()} disabled={manualImporting || !manualResult.trim()}>{manualImporting ? "검사·저장 중…" : "결과로 리포트 업데이트"}</button></div></section></div> : null}
   </>;
 }
