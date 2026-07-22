@@ -22,7 +22,7 @@ export function ThemeToggle() {
       };
     },
     readTheme,
-    () => "dark" as Theme,
+    () => "light" as Theme,
   );
 
   function toggleTheme() {
