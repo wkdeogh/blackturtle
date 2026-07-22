@@ -50,7 +50,7 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
 function mapRefreshRun(row: Record<string, unknown>): RefreshRunStatus {
   return {
     id: row.id as string,
-    source: row.source === "macro" || row.source === "social" ? row.source : null,
+    source: row.source === "macro" || row.source === "market" || row.source === "social" ? row.source : null,
     status: row.status as RefreshRunStatus["status"],
     stage: (row.stage as RefreshRunStatus["stage"] | undefined) ?? null,
     workflowRunId: (row.workflow_run_id as string | null | undefined) ?? null,
@@ -89,14 +89,16 @@ export async function getLatestRefreshRun(): Promise<RefreshRunStatus | null> {
 }
 
 export function getSnapshotSource(snapshot: StoredSnapshot): RefreshSource | null {
-  if (snapshot.payload.refreshSource === "macro" || snapshot.payload.refreshSource === "social") {
+  if (snapshot.payload.refreshSource === "macro" || snapshot.payload.refreshSource === "market" || snapshot.payload.refreshSource === "social") {
     return snapshot.payload.refreshSource;
   }
 
   const generatedAt = snapshot.payload.generatedAt;
   const macroMatches = snapshot.payload.macroUpdatedAt === generatedAt;
+  const marketMatches = snapshot.payload.marketUpdatedAt === generatedAt;
   const socialMatches = snapshot.payload.socialUpdatedAt === generatedAt;
-  if (macroMatches !== socialMatches) return macroMatches ? "macro" : "social";
+  const matches = [macroMatches && "macro", marketMatches && "market", socialMatches && "social"].filter(Boolean) as RefreshSource[];
+  if (matches.length === 1) return matches[0];
   return null;
 }
 
@@ -263,6 +265,7 @@ export function getMissingConfiguration(source?: RefreshSource, socialMode: Soci
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
   ];
   if (!source || source === "macro") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
+  if (!source || source === "market") required.push(["TWELVE_DATA_API_KEY", process.env.TWELVE_DATA_API_KEY]);
   if (!source || source === "social") {
     if (socialMode !== "analyze_only") required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
     if (socialMode !== "collect_only") required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);

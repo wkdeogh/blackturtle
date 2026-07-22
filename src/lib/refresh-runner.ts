@@ -34,6 +34,7 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
   const previous = await getLatestSnapshot();
   const now = new Date().toISOString();
   let macro = previous?.payload.macro ?? [];
+  const market = previous?.payload.market;
   let social = previous?.payload.social ?? {
     periodDays: 7,
     accounts: [],
@@ -44,7 +45,7 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
 
   if (source === "macro") {
     macro = await collectMacroData(process.env.FRED_API_KEY!, previous?.payload.macro, process.env.MASSIVE_API_KEY);
-  } else {
+  } else if (source === "social") {
     const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
     if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
     social = await collectXData(
@@ -57,6 +58,8 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
       process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL,
       previous?.payload.social,
     );
+  } else {
+    throw new Error("시장 데이터는 호출 제한을 지키는 지속 실행 Workflow에서만 갱신할 수 있습니다.");
   }
 
   return {
@@ -64,10 +67,12 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
     generatedAt: now,
     refreshSource: source,
     macroUpdatedAt: source === "macro" ? now : previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    marketUpdatedAt: previous?.payload.marketUpdatedAt,
     socialUpdatedAt: source === "social" ? now : previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
     socialCollectedAt: source === "social" ? now : previous?.payload.socialCollectedAt,
     socialAnalyzedAt: source === "social" ? now : previous?.payload.socialAnalyzedAt,
     macro,
+    market,
     social,
   };
 }

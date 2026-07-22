@@ -1,15 +1,19 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
+import { collectMarketBatch, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, type MarketBatchResult } from "@/lib/market-data";
 import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
-import type { DashboardSnapshot, MacroSeries, RefreshSource, SocialRefreshMode, TopicSummary } from "@/lib/types";
+import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, SocialRefreshMode, TopicSummary } from "@/lib/types";
 import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
+import { sleep } from "workflow";
 
 interface SocialWorkflowContext {
   generatedAt: string;
   macro: MacroSeries[];
   macroUpdatedAt?: string;
+  market?: MarketSnapshot;
+  marketUpdatedAt?: string;
   socialCollectedAt?: string;
   socialAnalyzedAt?: string;
   previousSocial?: DashboardSnapshot["social"];
@@ -41,6 +45,60 @@ async function collectMacroAndStoreDraft(runId: string) {
   return snapshot.generatedAt;
 }
 
+async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
+  "use step";
+  const apiKey = process.env.TWELVE_DATA_API_KEY;
+  if (!apiKey) throw new Error("설정되지 않은 환경 변수: TWELVE_DATA_API_KEY");
+  return collectMarketBatch(apiKey, MARKET_PRIMARY_IDS);
+}
+
+async function collectCountryMarketData(): Promise<MarketBatchResult> {
+  "use step";
+  const apiKey = process.env.TWELVE_DATA_API_KEY;
+  if (!apiKey) throw new Error("설정되지 않은 환경 변수: TWELVE_DATA_API_KEY");
+  return collectMarketBatch(apiKey, MARKET_COUNTRY_IDS);
+}
+
+// 무료 플랜의 분당 크레딧을 소진하는 단계라 동일 요청을 자동 반복하지 않는다.
+collectPrimaryMarketData.maxRetries = 0;
+collectCountryMarketData.maxRetries = 0;
+
+async function storeMarketDraft(runId: string, primary: MarketBatchResult, countries: MarketBatchResult): Promise<string> {
+  "use step";
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const previous = await getLatestSnapshot();
+  const generatedAt = new Date().toISOString();
+  const snapshot: DashboardSnapshot = {
+    version: 1,
+    generatedAt,
+    refreshSource: "market",
+    macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    marketUpdatedAt: generatedAt,
+    socialUpdatedAt: previous?.payload.socialUpdatedAt,
+    socialCollectedAt: previous?.payload.socialCollectedAt,
+    socialAnalyzedAt: previous?.payload.socialAnalyzedAt,
+    macro: previous?.payload.macro ?? [],
+    market: {
+      provider: "Twelve Data",
+      peakWindowYears: 3,
+      series: primary.series.filter((series) => series.group === "market"),
+      countryEtfs: countries.series.filter((series) => series.group === "country"),
+      warnings: [...primary.warnings, ...countries.warnings],
+    },
+    social: previous?.payload.social ?? {
+      periodDays: 7,
+      accounts: [],
+      posts: [],
+      companies: [],
+      analyzedPostCount: 0,
+    },
+  };
+  const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
+  if (error) throw new Error(`시장 데이터 임시 저장 실패: ${error.message}`);
+  return generatedAt;
+}
+
 async function collectSocialPosts(): Promise<SocialWorkflowContext> {
   "use step";
   const missing = getMissingConfiguration("social", "collect_only");
@@ -64,6 +122,8 @@ async function collectSocialPosts(): Promise<SocialWorkflowContext> {
     generatedAt: new Date().toISOString(),
     macro: previous?.payload.macro ?? [],
     macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    market: previous?.payload.market,
+    marketUpdatedAt: previous?.payload.marketUpdatedAt,
     socialAnalyzedAt: previous?.payload.socialAnalyzedAt ?? previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
     previousSocial: previous?.payload.social,
     prepared,
@@ -93,6 +153,8 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
     generatedAt: new Date().toISOString(),
     macro: previous.payload.macro,
     macroUpdatedAt: previous.payload.macroUpdatedAt ?? previous.payload.generatedAt,
+    market: previous.payload.market,
+    marketUpdatedAt: previous.payload.marketUpdatedAt,
     socialCollectedAt: previous.payload.socialCollectedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
     socialAnalyzedAt: previous.payload.socialAnalyzedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
     previousSocial: previous.payload.social,
@@ -148,10 +210,12 @@ async function storeSocialDraft(
     generatedAt: context.generatedAt,
     refreshSource: "social",
     macroUpdatedAt: context.macroUpdatedAt,
+    marketUpdatedAt: context.marketUpdatedAt,
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.socialCollectedAt ?? context.generatedAt,
     socialAnalyzedAt: context.generatedAt,
     macro: context.macro,
+    market: context.market,
     social: {
       ...social,
       topicModel: topicResult.model,
@@ -175,10 +239,12 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
     generatedAt: context.generatedAt,
     refreshSource: "social",
     macroUpdatedAt: context.macroUpdatedAt,
+    marketUpdatedAt: context.marketUpdatedAt,
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.generatedAt,
     socialAnalyzedAt: context.socialAnalyzedAt,
     macro: context.macro,
+    market: context.market,
     social: {
       ...social,
       topicModel: context.previousSocial?.topicModel,
@@ -221,6 +287,21 @@ export async function refreshDataWorkflow(
     if (source === "macro") {
       stage = "매크로 지표 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
+    } else if (source === "market") {
+      stage = "주요 시장지수 수집";
+      const primary = await collectPrimaryMarketData();
+      stage = "주요 시장지수 우선 저장";
+      await storeMarketDraft(runId, primary, {
+        series: [],
+        warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+      });
+      await setRefreshStage(runId, "collecting");
+      stage = "무료 API 호출 한도 대기";
+      await sleep("61s");
+      stage = "국가 ETF 수집";
+      const countries = await collectCountryMarketData();
+      stage = "시장 데이터 임시 저장";
+      generatedAt = await storeMarketDraft(runId, primary, countries);
     } else if (socialMode === "collect_only") {
       stage = "X 게시물만 수집";
       const context = await collectSocialPosts();

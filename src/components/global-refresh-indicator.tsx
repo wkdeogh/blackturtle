@@ -29,5 +29,5 @@ export function GlobalRefreshIndicator() {
   }, []);
 
   if (run?.status !== "running") return null;
-  return <span className="global-refresh-status"><i aria-hidden="true" />{run.source === "macro" ? "FRED" : run.source === "social" ? "X" : "데이터"} 갱신 중</span>;
+  return <span className="global-refresh-status"><i aria-hidden="true" />{run.source === "macro" ? "매크로" : run.source === "market" ? "시장" : run.source === "social" ? "X" : "데이터"} 갱신 중</span>;
 }

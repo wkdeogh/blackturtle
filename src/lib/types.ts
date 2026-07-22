@@ -18,7 +18,43 @@ export interface MacroSeries {
   points: MacroPoint[];
 }
 
-export type RefreshSource = "macro" | "social";
+export interface MarketPoint {
+  date: string;
+  value: number;
+}
+
+export type MarketInstrumentType = "index" | "etf" | "forex" | "crypto";
+export type MarketSeriesGroup = "market" | "country";
+
+export interface MarketSeries {
+  id: string;
+  label: string;
+  symbol: string;
+  group: MarketSeriesGroup;
+  instrumentType: MarketInstrumentType;
+  benchmark?: string;
+  currency: string;
+  decimals: number;
+  current: number;
+  previous: number | null;
+  change: number | null;
+  changePercent: number | null;
+  observationDate: string;
+  peakValue: number;
+  peakDate: string;
+  drawdownPercent: number;
+  points: MarketPoint[];
+}
+
+export interface MarketSnapshot {
+  provider: "Twelve Data";
+  peakWindowYears: 3;
+  series: MarketSeries[];
+  countryEtfs: MarketSeries[];
+  warnings: string[];
+}
+
+export type RefreshSource = "macro" | "market" | "social";
 export type SocialRefreshMode = "collect_and_analyze" | "collect_only" | "analyze_only";
 export type RefreshRunState = "running" | "success" | "failed";
 export type RefreshStage = "queued" | "collecting" | "saving" | "completed" | "failed";
@@ -83,10 +119,12 @@ export interface DashboardSnapshot {
   generatedAt: string;
   refreshSource?: RefreshSource;
   macroUpdatedAt?: string;
+  marketUpdatedAt?: string;
   socialUpdatedAt?: string;
   socialCollectedAt?: string;
   socialAnalyzedAt?: string;
   macro: MacroSeries[];
+  market?: MarketSnapshot;
   social: {
     analysisModel?: string;
     topicModel?: string;
