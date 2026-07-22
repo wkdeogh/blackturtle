@@ -1,4 +1,4 @@
-import { collectFredData } from "@/lib/fred";
+import { collectMacroData } from "@/lib/macro-data";
 import { getLatestSnapshot, getMissingConfiguration, getXMonitorSettings } from "@/lib/supabase";
 import type { DashboardSnapshot, RefreshSource } from "@/lib/types";
 import { collectXData } from "@/lib/x-api";
@@ -42,7 +42,7 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
   };
 
   if (source === "macro") {
-    macro = await collectFredData(process.env.FRED_API_KEY!);
+    macro = await collectMacroData(process.env.FRED_API_KEY!, previous?.payload.macro);
   } else {
     const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
     if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");

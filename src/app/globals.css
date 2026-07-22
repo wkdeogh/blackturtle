@@ -181,8 +181,9 @@ a { color: inherit; }
 .section-title { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
 .section-title h2 { margin: 5px 0 0; font-family: Georgia, serif; font-size: clamp(31px, 4vw, 44px); font-weight: 500; letter-spacing: -.035em; }
 .section-title > p { margin: 0 0 6px; color: var(--muted); font-size: 11px; }
-.macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.macro-card { min-height: 238px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); padding: 19px; }
+.macro-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.macro-card { min-width: 0; min-height: 330px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); padding: 19px; }
+.macro-card.wide { grid-column: 1 / -1; min-height: 390px; }
 .macro-card-head { display: flex; justify-content: space-between; gap: 14px; }
 .macro-card h3 { margin: 5px 0 0; font-size: 14px; }
 .data-tag { color: var(--green-2); font-size: 9px; font-weight: 900; letter-spacing: .12em; }
@@ -190,15 +191,21 @@ a { color: inherit; }
 .macro-value-row { display: flex; align-items: baseline; gap: 7px; margin: 24px 0 14px; }
 .macro-value-row strong { font-family: Georgia, serif; font-size: 36px; font-weight: 500; letter-spacing: -.035em; }
 .macro-value-row span { color: var(--muted); font-size: 11px; }
-.mini-chart { height: 45px; display: flex; align-items: end; gap: 3px; }
-.mini-chart i { flex: 1; min-height: 3px; border-radius: 2px 2px 0 0; background: var(--mint); }
-.mini-chart i:last-child { background: var(--green-2); }
-.dated-chart { position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; border-top: 1px solid var(--chart-grid); border-bottom: 1px solid var(--chart-grid); padding: 8px 0 6px; }
-.chart-point { min-width: 0; }
-.chart-bar-wrap { height: 58px; display: flex; align-items: end; padding: 0 1px; }
-.chart-point i { display: block; width: 100%; min-height: 3px; border-radius: 4px 4px 1px 1px; background: var(--green); opacity: .72; }
-.chart-point:last-child i { background: var(--green-2); opacity: 1; }
-.chart-point time { display: block; margin-top: 6px; overflow: hidden; color: var(--muted); font-size: 7px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.macro-line-chart { position: relative; min-width: 0; margin-top: 13px; padding-left: 34px; }
+.macro-line-chart svg { display: block; width: 100%; height: 118px; overflow: visible; border-bottom: 1px solid var(--chart-grid); }
+.macro-card.wide .macro-line-chart svg { height: 170px; }
+.macro-line-axis { position: absolute; top: -6px; bottom: 21px; left: 0; display: flex; flex-direction: column; justify-content: space-between; color: var(--muted); font-size: 7px; font-variant-numeric: tabular-nums; }
+.chart-grid-line { stroke: var(--chart-grid); stroke-width: .6; }
+.chart-zero-line { stroke: var(--red); stroke-width: .9; stroke-dasharray: 2 2; opacity: .8; }
+.chart-data-line { fill: none; stroke: var(--green-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.macro-line-chart.risk .chart-data-line { stroke: #e38336; }
+.macro-line-chart.sentiment .chart-data-line { stroke: #50b991; }
+.chart-last-point { fill: var(--card); stroke: var(--green-2); stroke-width: 1.4; }
+.macro-line-chart.risk .chart-last-point { stroke: #e38336; }
+.macro-line-dates { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 7px; font-variant-numeric: tabular-nums; }
+.macro-line-dates time:nth-child(2) { text-align: center; }
+.macro-line-dates time:last-child { text-align: right; }
+.macro-line-empty { min-height: 118px; display: grid; place-items: center; color: var(--muted); font-size: 9px; }
 .macro-meta { display: flex; justify-content: space-between; margin-top: 11px; font-size: 10px; }
 .macro-meta time { color: var(--muted); }
 .delta { font-weight: 900; }.delta.up { color: var(--green-2); }.delta.down { color: var(--red); }
@@ -207,6 +214,38 @@ a { color: inherit; }
 .macro-guide p + p { margin-top: 7px; }
 .macro-guide b { color: var(--green-2); font-size: 8px; letter-spacing: .06em; }
 .macro-section { margin-top: 48px; }
+.fear-greed-card { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1.5fr); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); }
+.fear-greed-current, .fear-greed-history { min-width: 0; padding: 22px; }
+.fear-greed-current { border-right: 1px solid var(--line); }
+.fear-greed-current .macro-card-head h3 { margin: 5px 0 0; font-size: 15px; }
+.fear-score { display: flex; flex-direction: column; align-items: center; margin: 31px 0 18px; }
+.fear-score strong { font-family: Georgia, "Times New Roman", serif; font-size: 66px; font-weight: 500; line-height: .9; letter-spacing: -.05em; }
+.fear-score span { margin-top: 9px; font-size: 12px; font-weight: 900; }
+.fear-score.extreme-fear, .fear-score.fear { color: #e66a61; }
+.fear-score.neutral { color: var(--muted); }
+.fear-score.greed, .fear-score.extreme-greed { color: var(--green-2); }
+.fear-scale { position: relative; padding-top: 8px; }
+.fear-scale > div { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; height: 8px; overflow: hidden; border-radius: 999px; }
+.fear-scale > div span.extreme-fear { background: #a94c47; }
+.fear-scale > div span.fear { background: #d87a63; }
+.fear-scale > div span.neutral { background: #737e78; }
+.fear-scale > div span.greed { background: #4f9273; }
+.fear-scale > div span.extreme-greed { background: #257653; }
+.fear-scale > i { position: absolute; top: 2px; width: 3px; height: 20px; border-radius: 2px; background: var(--ink); transform: translateX(-50%); box-shadow: 0 0 0 2px var(--card); }
+.fear-scale > small { display: flex; justify-content: space-between; margin-top: 7px; color: var(--muted); font-size: 7px; }
+.fear-comparisons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 21px; }
+.fear-comparisons > span { display: flex; flex-direction: column; align-items: center; border-left: 1px solid var(--line); }
+.fear-comparisons > span:first-child { border-left: 0; }
+.fear-comparisons small { color: var(--muted); font-size: 8px; }
+.fear-comparisons b { margin-top: 2px; font-family: Georgia, serif; font-size: 18px; font-weight: 500; }
+.fear-greed-current > p { margin: 21px 0 0; color: var(--muted); font-size: 9px; line-height: 1.65; }
+.fear-history-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+.fear-history-head span { color: var(--green-2); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
+.fear-history-head h3 { margin: 4px 0 0; font-family: Georgia, serif; font-size: 24px; font-weight: 500; }
+.fear-history-head time { color: var(--muted); font-size: 8px; }
+.fear-greed-history .macro-line-chart { margin-top: 24px; }
+.fear-greed-history .macro-line-chart svg { height: 230px; }
+.fear-source-note { margin: 14px 0 0 34px; border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 8px; }
 
 .collection-panel { margin-top: 28px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .collection-fields { display: grid; grid-template-columns: minmax(180px, .55fr) 1.45fr; gap: 14px; padding: 20px 20px 12px; }
@@ -398,6 +437,8 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .dashboard-hero { grid-template-columns: 1fr; gap: 28px; }
   .refresh-panel { border-left: 0; border-top: 1px solid var(--line); padding: 22px 0 0; }
   .macro-grid { grid-template-columns: repeat(2, 1fr); }
+  .fear-greed-card { grid-template-columns: 1fr; }
+  .fear-greed-current { border-right: 0; border-bottom: 1px solid var(--line); }
   .signal-grid { grid-template-columns: 1fr; }
   .signal-note { min-height: 240px; }
   .wordmark > span:last-child { display: none; }
@@ -444,10 +485,13 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .section-title { align-items: start; flex-direction: column; gap: 5px; }
   .section-title > p { margin: 0; }
   .macro-grid { grid-template-columns: 1fr; }
-  .macro-card { min-height: 300px; padding: 17px 14px; }
-  .dated-chart { gap: 2px; }
-  .chart-bar-wrap { height: 68px; padding: 0; }
-  .chart-point time { font-size: 6.5px; letter-spacing: -.03em; }
+  .macro-card, .macro-card.wide { min-height: 330px; padding: 17px 14px; }
+  .macro-card.wide { grid-column: auto; }
+  .macro-line-chart svg, .macro-card.wide .macro-line-chart svg { height: 145px; }
+  .macro-line-dates { font-size: 6.5px; letter-spacing: -.03em; }
+  .fear-greed-current, .fear-greed-history { padding: 17px 14px; }
+  .fear-greed-history .macro-line-chart svg { height: 180px; }
+  .fear-source-note { margin-left: 34px; }
   .topic-grid { grid-template-columns: 1fr; }
   .topic-card:first-child { grid-column: auto; }
   .topic-card h3 { font-size: 21px; }

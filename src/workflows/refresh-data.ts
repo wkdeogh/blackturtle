@@ -218,7 +218,7 @@ export async function refreshDataWorkflow(
     await setRefreshStage(runId, "collecting");
     let generatedAt: string;
     if (source === "macro") {
-      stage = "FRED 수집";
+      stage = "매크로 지표 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
     } else if (socialMode === "collect_only") {
       stage = "X 게시물만 수집";
