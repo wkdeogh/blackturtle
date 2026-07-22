@@ -92,6 +92,7 @@ function PostCard({ post }: { post: SocialPost }) {
 
 export function SocialResults({ social, expanded = false }: { social: SocialResultsData; expanded?: boolean }) {
   const [selectedAccount, setSelectedAccount] = useState("all");
+  const [selectedPostAccount, setSelectedPostAccount] = useState<string | null>(null);
   const accountNames = useMemo(() => {
     const names = new Set(social.accounts.map((account) => account.username.toLowerCase()));
     for (const post of social.posts) names.add(post.username.toLowerCase());
@@ -106,16 +107,35 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
     [filteredPosts, selectedAccount, social.companies],
   );
   const filteredAnalyzedCount = filteredPosts.filter((post) => post.analyzed !== false).length;
+  const postAccountNames = useMemo(
+    () => [...new Set(social.posts.map((post) => post.username.toLowerCase()))].sort((left, right) => left.localeCompare(right)),
+    [social.posts],
+  );
+  const activePostAccount = selectedPostAccount === "all" || (selectedPostAccount && postAccountNames.includes(selectedPostAccount))
+    ? selectedPostAccount
+    : postAccountNames[0] ?? "all";
+  const visiblePosts = useMemo(
+    () => activePostAccount === "all" ? social.posts : social.posts.filter((post) => post.username.toLowerCase() === activePostAccount),
+    [activePostAccount, social.posts],
+  );
+  const postCountsByAccount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const post of social.posts) {
+      const username = post.username.toLowerCase();
+      counts.set(username, (counts.get(username) ?? 0) + 1);
+    }
+    return counts;
+  }, [social.posts]);
   const postGroups = useMemo(() => {
     const groups = new Map<string, SocialPost[]>();
-    for (const post of filteredPosts) {
+    for (const post of visiblePosts) {
       const username = post.username.toLowerCase();
       const posts = groups.get(username) ?? [];
       posts.push(post);
       groups.set(username, posts);
     }
     return [...groups].map(([username, posts]) => ({ username, posts }));
-  }, [filteredPosts]);
+  }, [visiblePosts]);
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
   const topics = social.topics ?? [];
@@ -130,7 +150,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         <p className="topic-footnote">게시물 하나가 여러 주제와 관련되면 각 주제에 함께 집계될 수 있습니다. 전체 수집 게시물의 공통 흐름을 요약하며 투자 조언이 아닙니다.</p>
       </section>
       <section className="result-filter" aria-label="X 결과 계정 필터">
-        <div><span>ACCOUNT VIEW</span><strong>{accountLabel}</strong><small>기업 언급과 게시물을 같은 계정 기준으로 필터링합니다.</small></div>
+        <div><span>ACCOUNT VIEW</span><strong>{accountLabel}</strong><small>기업 언급 집계를 선택한 계정 기준으로 필터링합니다.</small></div>
         <label htmlFor="social-account-filter">계정 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((username) => <option value={username} key={username}>@{username}</option>)}</select></label>
       </section>
       <section className="section-block signal-section">
@@ -150,9 +170,13 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물 전체</h2></div><p>{accountLabel} · {filteredPosts.length}개 · 계정별 최신순</p></div>
+        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{activePostAccount === "all" ? "전체 계정" : `@${activePostAccount}`} · {visiblePosts.length}개 · 최신순</p></div>
+        {postAccountNames.length ? <div className="post-account-tabs" role="tablist" aria-label="게시물을 볼 X 계정 선택">
+          {postAccountNames.map((username) => <button type="button" role="tab" aria-selected={activePostAccount === username} className={activePostAccount === username ? "active" : ""} onClick={() => setSelectedPostAccount(username)} key={username}><span>@{username}</span><small>{postCountsByAccount.get(username) ?? 0}</small></button>)}
+          <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => setSelectedPostAccount("all")}><span>전체</span><small>{social.posts.length}</small></button>
+        </div> : null}
         <div className="account-post-groups">{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 게시물</span></div><div className="post-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
-        {!filteredPosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
+        {!visiblePosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>
   );

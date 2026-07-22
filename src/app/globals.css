@@ -281,6 +281,14 @@ a { color: inherit; }
 .legend { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 21px; }
 .legend span { display: flex; align-items: center; gap: 5px; color: #c8d7ce; font-size: 9px; }.legend i { width: 7px; height: 7px; border-radius: 50%; }
 .board-empty { padding: 40px 0; color: var(--muted); text-align: center; font-size: 13px; }
+.post-account-tabs { display: flex; gap: 7px; margin: -2px 0 18px; overflow-x: auto; padding: 2px 2px 7px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.post-account-tabs button { min-height: 42px; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 0 11px 0 14px; color: var(--muted); background: #101713; font: inherit; cursor: pointer; transition: border-color .16s ease, color .16s ease, background .16s ease; }
+.post-account-tabs button:hover { border-color: #405047; color: var(--ink); }
+.post-account-tabs button:focus-visible { outline: 2px solid var(--green-2); outline-offset: 2px; }
+.post-account-tabs button.active { border-color: #3b7e60; color: #dff5e9; background: #193426; }
+.post-account-tabs button span { font-size: 10px; font-weight: 900; white-space: nowrap; }
+.post-account-tabs button small { min-width: 22px; border-radius: 999px; padding: 3px 6px; color: #aab7af; background: rgba(255,255,255,.06); font-size: 8px; font-weight: 900; text-align: center; }
+.post-account-tabs button.active small { color: var(--green-2); background: rgba(105,195,151,.12); }
 .post-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .account-post-groups { display: grid; gap: 30px; }
 .account-post-group { min-width: 0; }
