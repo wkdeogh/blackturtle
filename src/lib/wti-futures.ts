@@ -42,8 +42,7 @@ export async function collectWtiFuturesData(apiKey: string): Promise<MacroSeries
     active: "true",
     type: "single",
     date: today,
-    sort: "last_trade_date.asc",
-    limit: "12",
+    limit: "1000",
     apiKey,
   });
   const contractResponse = await fetchWithTimeout(`${MASSIVE_API_BASE}/contracts?${contractParams}`, {
@@ -63,7 +62,6 @@ export async function collectWtiFuturesData(apiKey: string): Promise<MacroSeries
   const aggregateParams = new URLSearchParams({
     resolution: "1session",
     limit: "180",
-    sort: "window_start.asc",
     apiKey,
   });
   const aggregateResponse = await fetchWithTimeout(`${MASSIVE_API_BASE}/aggs/${encodeURIComponent(contract.ticker)}?${aggregateParams}`, {
