@@ -74,7 +74,11 @@ export async function collectWtiFuturesData(apiKey: string): Promise<MacroSeries
 
   const byDate = new Map<string, MacroPoint>();
   for (const bar of aggregateBody.results ?? []) {
-    const value = Number.isFinite(bar.settlement_price) ? bar.settlement_price : bar.close;
+    // Massive may expose 0 as an unset settlement value for the latest session.
+    // Prefer a non-zero settlement, then a non-zero close. Keep legitimate negative oil prices.
+    const settlement = Number.isFinite(bar.settlement_price) && bar.settlement_price !== 0 ? bar.settlement_price : undefined;
+    const close = Number.isFinite(bar.close) && bar.close !== 0 ? bar.close : undefined;
+    const value = settlement ?? close;
     if (!bar.session_end_date || !/^\d{4}-\d{2}-\d{2}$/.test(bar.session_end_date) || !Number.isFinite(value)) continue;
     byDate.set(bar.session_end_date, { date: bar.session_end_date, value: value! });
   }
