@@ -191,6 +191,12 @@ a { color: inherit; }
 .macro-value-row { display: flex; align-items: baseline; gap: 7px; margin: 24px 0 14px; }
 .macro-value-row strong { font-family: Georgia, serif; font-size: 36px; font-weight: 500; letter-spacing: -.035em; }
 .macro-value-row span { color: var(--muted); font-size: 11px; }
+.macro-signal { display: flex; align-items: center; gap: 8px; min-height: 27px; margin: -4px 0 2px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.macro-signal b { flex: 0 0 auto; border: 1px solid currentColor; border-radius: 999px; padding: 3px 7px; font-size: 8px; }
+.macro-signal.good b { color: var(--green-2); }
+.macro-signal.watch b { color: #d99345; }
+.macro-signal.risk b { color: var(--red); }
+.macro-signal.neutral b { color: var(--muted); }
 .macro-line-chart { position: relative; min-width: 0; margin-top: 13px; padding-left: 34px; }
 .macro-line-chart svg { display: block; width: 100%; height: 118px; overflow: visible; border-bottom: 1px solid var(--chart-grid); }
 .macro-card.wide .macro-line-chart svg { height: 170px; }

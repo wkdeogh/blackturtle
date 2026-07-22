@@ -1,5 +1,6 @@
 import type { MacroSeries } from "@/lib/types";
 import { FRED_GUIDES } from "@/lib/fred";
+import { getMacroSignal } from "@/lib/macro-signal";
 import { MacroLineChart } from "@/components/macro-line-chart";
 
 function formatValue(value: number, decimals: number): string {
@@ -9,6 +10,7 @@ function formatValue(value: number, decimals: number): string {
 export function MacroCard({ series }: { series: MacroSeries }) {
   const isUp = (series.change ?? 0) >= 0;
   const guide = FRED_GUIDES[series.id];
+  const signal = getMacroSignal(series);
   const isWide = series.id === "VIXCLS" || series.id === "T10Y2Y";
   const tone = series.id === "VIXCLS" ? "risk" : "default";
 
@@ -20,6 +22,9 @@ export function MacroCard({ series }: { series: MacroSeries }) {
       </div>
       <div className="macro-value-row">
         <strong>{formatValue(series.current, series.decimals)}</strong><span>{series.unit}</span>
+      </div>
+      <div className={`macro-signal ${signal.level}`} aria-label={`규칙 기반 상태 ${signal.label}`}>
+        <b>{signal.label}</b><span>{signal.detail}</span>
       </div>
       <MacroLineChart series={series} tone={tone} />
       <div className="macro-meta">
