@@ -25,7 +25,7 @@ export function XCollectionPanel({
   const [lookbackDays, setLookbackDays] = useState(initialLookbackDays);
   const [perAccountPostLimit, setPerAccountPostLimit] = useState(initialPerAccountPostLimit?.toString() ?? "");
   const [totalPostLimit, setTotalPostLimit] = useState(initialTotalPostLimit?.toString() ?? "");
-  const [action, setAction] = useState<"collect" | "analyze" | null>(null);
+  const [action, setAction] = useState<"collect" | "analyze" | "combined" | null>(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
@@ -67,6 +67,28 @@ export function XCollectionPanel({
     }
   }
 
+  async function collectAndAnalyze() {
+    if (action || refresh.running || !accountCount) return;
+    setAction("combined");
+    setIsError(false);
+    setMessage("");
+    try {
+      await refresh.startRefresh({
+        socialMode: "collect_and_analyze",
+        collectionSettings: {
+          lookbackDays,
+          perAccountPostLimit: perAccountPostLimit ? Number(perAccountPostLimit) : null,
+          totalPostLimit: totalPostLimit ? Number(totalPostLimit) : null,
+        },
+      });
+    } catch (caught) {
+      setIsError(true);
+      setMessage(caught instanceof Error ? caught.message : "X 수집과 LLM 분석을 시작하지 못했습니다.");
+    } finally {
+      setAction(null);
+    }
+  }
+
   return (
     <section className="collection-panel">
       <div className="collection-panel-head">
@@ -92,7 +114,7 @@ export function XCollectionPanel({
         </div>
       </div>
       <div className="collection-action-row">
-        <p>X 수집은 원문만 저장하며 X API 비용이 발생할 수 있습니다. LLM 재분석은 저장된 {storedPostCount}개 게시물만 사용하므로 X API를 호출하지 않습니다.</p>
+        <p>X만 수집하거나 저장된 {storedPostCount}개 게시물만 재분석할 수 있습니다. 통합 실행은 현재 설정을 저장한 뒤 X 수집과 LLM 분석을 연속으로 처리합니다.</p>
         <div className="collection-buttons">
           <button className="secondary-button refresh-button" type="button" onClick={analyzeStoredPosts} disabled={Boolean(action) || refresh.running || !storedPostCount}>
             <span className={action === "analyze" ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">◇</span>
@@ -101,6 +123,10 @@ export function XCollectionPanel({
           <button className="primary-button refresh-button" type="button" onClick={saveAndCollect} disabled={Boolean(action) || refresh.running || !accountCount}>
             <span className={action === "collect" ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
             {action === "collect" ? "설정 저장 중" : refresh.running ? (refresh.ownRun ? "작업 진행 중" : "다른 갱신 중") : "설정 저장 후 X만 수집"}
+          </button>
+          <button className="combined-button refresh-button" type="button" onClick={collectAndAnalyze} disabled={Boolean(action) || refresh.running || !accountCount}>
+            <span className={action === "combined" ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
+            {action === "combined" ? "통합 요청 중" : refresh.running ? "작업 진행 중" : "X 수집 + LLM 분석"}
           </button>
         </div>
       </div>

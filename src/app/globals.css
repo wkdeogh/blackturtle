@@ -39,6 +39,9 @@ a { color: inherit; }
 .secondary-button { min-height: 48px; border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; color: var(--ink); background: #151e19; font-weight: 900; cursor: pointer; transition: border-color .16s ease, background .16s ease, opacity .16s ease; }
 .secondary-button:hover:not(:disabled) { border-color: var(--green-2); background: #1a2720; }
 .secondary-button:disabled { cursor: not-allowed; opacity: .52; }
+.combined-button { min-height: 48px; border: 1px solid #9a7130; border-radius: 12px; padding: 0 18px; color: #fff4d6; background: #75501d; font-weight: 900; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease, opacity .16s ease; }
+.combined-button:hover:not(:disabled) { border-color: #d3a553; background: #916526; transform: translateY(-1px); }
+.combined-button:disabled { cursor: not-allowed; opacity: .52; }
 .text-button { border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; color: var(--ink); background: transparent; font-size: 12px; font-weight: 800; cursor: pointer; }
 
 /* password gate */
