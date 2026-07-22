@@ -10,7 +10,7 @@ interface RefreshResponse {
 }
 
 function sourceLabel(source: RefreshSource | null): string {
-  return source === "macro" ? "FRED" : source === "social" ? "X" : "데이터";
+  return source === "macro" ? "매크로" : source === "social" ? "X" : "데이터";
 }
 
 export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatus | null) {
@@ -86,7 +86,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     } else if (run.stage === "saving") {
       message = "수집 결과를 저장하는 중입니다. 페이지를 나가도 계속 진행됩니다…";
     } else if (run.stage === "collecting") {
-      message = source === "macro" ? "FRED 데이터를 가져오는 중입니다. 페이지를 나가도 계속 진행됩니다…" : "X 데이터 작업을 처리하는 중입니다. 페이지를 나가도 계속 진행됩니다…";
+      message = source === "macro" ? "매크로 데이터를 가져오는 중입니다. 페이지를 나가도 계속 진행됩니다…" : "X 데이터 작업을 처리하는 중입니다. 페이지를 나가도 계속 진행됩니다…";
     } else {
       message = "갱신 작업이 대기열에서 시작을 기다리고 있습니다. 페이지를 나가도 됩니다…";
     }
@@ -94,7 +94,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     message = `최근 갱신 실패: ${run.error ?? "알 수 없는 오류"}`;
     isError = true;
   } else if (!message && ownRun && run?.status === "success" && completedThisSession) {
-    message = source === "macro" ? "새 FRED 데이터를 저장했습니다." : "X 작업 결과를 저장했습니다.";
+    message = source === "macro" ? "새 매크로 데이터를 저장했습니다." : "X 작업 결과를 저장했습니다.";
   }
 
   return {

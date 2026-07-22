@@ -229,6 +229,10 @@ export async function refreshDataWorkflow(
     } else {
       stage = socialMode === "analyze_only" ? "저장된 X 게시물 준비" : "X 게시물 수집";
       const context = socialMode === "analyze_only" ? await loadStoredSocialPosts() : await collectSocialPosts();
+      if (socialMode !== "analyze_only") {
+        stage = "X 원문 우선 저장";
+        await storeSocialCollectionDraft(runId, context);
+      }
       const posts = context.prepared.postsToAnalyze;
       const batchCount = Math.ceil(posts.length / OPENAI_BATCH_SIZE);
       const analysis: PostAnalysisResult[] = [];
