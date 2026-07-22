@@ -51,12 +51,13 @@ function ComprehensiveReport({ stored, currentSnapshotId }: { stored: StoredComp
   </article>;
 }
 
-export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentSnapshotId, migrationReady, hasData }: {
+export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentSnapshotId, migrationReady, hasData, analysisModel }: {
   initialRun: ComprehensiveAnalysisRunStatus | null;
   initialReport: StoredComprehensiveAnalysis | null;
   currentSnapshotId: string | null;
   migrationReady: boolean;
   hasData: boolean;
+  analysisModel: string;
 }) {
   const router = useRouter();
   const [run, setRun] = useState(initialRun);
@@ -120,7 +121,7 @@ export function ComprehensiveAnalysisPanel({ initialRun, initialReport, currentS
   return <>
     <section className="analysis-action-card">
       <div><p className="kicker">ON-DEMAND ANALYSIS</p><h2>현재 저장 데이터 종합분석</h2><p>매크로 시계열, 시장지수와 ETF 가격, X 게시물·기업 언급·주제 결과를 하나의 프롬프트로 분석합니다. 버튼을 누르기 전에는 비용이 발생하지 않습니다.</p></div>
-      <div className="analysis-action"><span>MODEL</span><strong>GPT 고급모델</strong><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "분석하기"}</button>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : null}</div>
+      <div className="analysis-action"><span>MODEL</span><strong>{analysisModel}</strong><button className="combined-button" type="button" onClick={() => void requestPreview()} disabled={disabled}>{loadingPreview ? "토큰 계산 중…" : running ? "분석 진행 중" : "분석하기"}</button>{status ? <p className={run?.status === "failed" || error ? "error" : ""} role="status">{status}</p> : null}</div>
     </section>
 
     {!migrationReady ? <aside className="setup-alert"><div><span className="alert-dot" /><strong>종합분석 저장 설정이 필요합니다</strong></div><p>Supabase SQL Editor에서 <code>202607220011_comprehensive_analysis.sql</code>을 실행하세요.</p></aside> : null}
