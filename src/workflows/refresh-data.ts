@@ -1,4 +1,5 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
+import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
@@ -49,7 +50,7 @@ async function collectSocialPosts(): Promise<SocialWorkflowContext> {
   const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
   if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
 
-  const analysisModel = process.env.OPENAI_MODEL ?? "gpt-5-nano";
+  const analysisModel = process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL;
   const prepared = await prepareXCollection(
     process.env.X_BEARER_TOKEN!,
     usernames,
@@ -81,7 +82,7 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
   if (!previous?.payload.social.posts.length) {
     throw new Error("먼저 X 게시물 수집만 실행해 저장된 게시물을 만드세요.");
   }
-  const analysisModel = process.env.OPENAI_MODEL ?? "gpt-5-nano";
+  const analysisModel = process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL;
   const rawPosts = previous.payload.social.posts.map(({ mentions: _mentions, translationKo: _translationKo, analyzed: _analyzed, ...post }) => {
     void _mentions;
     void _translationKo;
@@ -119,7 +120,7 @@ analyzeSocialBatch.maxRetries = 0;
 async function analyzeSocialTopics(posts: RawSocialPost[]): Promise<TopicStepResult> {
   "use step";
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_TOPIC_MODEL ?? "gpt-5-mini";
+  const model = process.env.OPENAI_TOPIC_MODEL ?? DEFAULT_OPENAI_TOPIC_MODEL;
   if (!apiKey) return { model, topics: [], error: "설정되지 않은 환경 변수: OPENAI_API_KEY" };
   try {
     return { model, topics: await analyzeTopicsWithOpenAI(posts, apiKey, model) };

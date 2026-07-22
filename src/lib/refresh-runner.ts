@@ -1,4 +1,5 @@
 import { collectMacroData } from "@/lib/macro-data";
+import { DEFAULT_OPENAI_ANALYSIS_MODEL } from "@/lib/openai-config";
 import { getLatestSnapshot, getMissingConfiguration, getXMonitorSettings } from "@/lib/supabase";
 import type { DashboardSnapshot, RefreshSource } from "@/lib/types";
 import { collectXData } from "@/lib/x-api";
@@ -53,7 +54,7 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
       perAccountPostLimit,
       totalPostLimit,
       process.env.OPENAI_API_KEY!,
-      process.env.OPENAI_MODEL ?? "gpt-5-nano",
+      process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL,
       previous?.payload.social,
     );
   }

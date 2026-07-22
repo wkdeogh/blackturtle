@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { OPENAI_TOPIC_REASONING_EFFORT } from "@/lib/openai-config";
 import type { SocialPost, TopicSummary } from "@/lib/types";
 
 type RawPost = Omit<SocialPost, "mentions">;
@@ -86,6 +87,7 @@ export async function analyzeTopicsWithOpenAI(
     },
     body: JSON.stringify({
       model,
+      reasoning: { effort: OPENAI_TOPIC_REASONING_EFFORT },
       store: false,
       instructions: TOPIC_INSTRUCTIONS,
       input: JSON.stringify({
