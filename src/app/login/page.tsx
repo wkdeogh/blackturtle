@@ -1,9 +1,11 @@
 import { Suspense } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
     <main className="login-page">
+      <div className="login-theme-toggle"><ThemeToggle /></div>
       <section className="login-panel">
         <div className="turtle-mark large" aria-hidden="true"><span /></div>
         <p className="kicker">PRIVATE INVESTMENT DESK</p>

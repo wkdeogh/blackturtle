@@ -10,9 +10,19 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0c110f",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0c110f" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f5" },
+  ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body>{children}</body></html>;
+  return (
+    <html lang="ko" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("blackturtle-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}}catch(e){}` }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }
