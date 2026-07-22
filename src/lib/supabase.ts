@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { DashboardSnapshot, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredSnapshot } from "@/lib/types";
+import type { ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, DashboardSnapshot, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -140,6 +140,64 @@ export async function getSnapshotById(id: string): Promise<StoredSnapshot | null
     id: data.id as string,
     createdAt: data.created_at as string,
     payload: data.payload as DashboardSnapshot,
+  };
+}
+
+function mapComprehensiveAnalysisRun(row: Record<string, unknown>): ComprehensiveAnalysisRunStatus {
+  return {
+    id: row.id as string,
+    snapshotId: (row.snapshot_id as string | null | undefined) ?? null,
+    status: row.status as ComprehensiveAnalysisRunStatus["status"],
+    stage: row.stage as ComprehensiveAnalysisRunStatus["stage"],
+    workflowRunId: (row.workflow_run_id as string | null | undefined) ?? null,
+    model: row.model as string,
+    estimatedInputTokens: Number(row.estimated_input_tokens ?? 0),
+    startedAt: row.started_at as string,
+    finishedAt: (row.finished_at as string | null | undefined) ?? null,
+    error: (row.error_summary as string | null | undefined) ?? null,
+  };
+}
+
+export interface ComprehensiveAnalysisState {
+  migrationReady: boolean;
+  latestRun: ComprehensiveAnalysisRunStatus | null;
+  latestReport: StoredComprehensiveAnalysis | null;
+}
+
+export async function getComprehensiveAnalysisState(): Promise<ComprehensiveAnalysisState> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, latestRun: null, latestReport: null };
+
+  const [runResult, reportResult] = await Promise.all([
+    supabase
+      .from("comprehensive_analysis_runs")
+      .select("id, snapshot_id, status, stage, workflow_run_id, model, estimated_input_tokens, started_at, finished_at, error_summary")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("comprehensive_analysis_runs")
+      .select("id, snapshot_id, finished_at, report")
+      .eq("status", "success")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const missing = [runResult.error, reportResult.error].some((error) => error?.code === "42P01" || error?.code === "PGRST205");
+  if (missing) return { migrationReady: false, latestRun: null, latestReport: null };
+  if (runResult.error) throw new Error(`종합분석 상태 조회 실패: ${runResult.error.message}`);
+  if (reportResult.error) throw new Error(`종합분석 리포트 조회 실패: ${reportResult.error.message}`);
+
+  return {
+    migrationReady: true,
+    latestRun: runResult.data ? mapComprehensiveAnalysisRun(runResult.data) : null,
+    latestReport: reportResult.data?.report ? {
+      id: reportResult.data.id as string,
+      snapshotId: (reportResult.data.snapshot_id as string | null | undefined) ?? null,
+      createdAt: reportResult.data.finished_at as string,
+      report: reportResult.data.report as ComprehensiveAnalysisReport,
+    } : null,
   };
 }
 

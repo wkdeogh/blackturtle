@@ -2,6 +2,7 @@ import Link from "next/link";
 import { HistoryRetentionSettings } from "@/components/history-retention-settings";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SocialSubnav } from "@/components/social-subnav";
 import { formatDateTime } from "@/lib/format";
 import { getHistorySettings, getSnapshotHistory, getSnapshotSource } from "@/lib/supabase";
 
@@ -22,6 +23,7 @@ export default async function HistoryPage() {
     <main className="dashboard-page">
       <SiteHeader />
       <div className="page-shell dashboard-content">
+        <SocialSubnav />
         <section className="page-intro history-intro"><p className="kicker">HISTORY</p><h1>갱신 히스토리</h1><p>성공한 매크로·시장지수·X 갱신 결과를 실행별로 보관합니다. 이 페이지를 열어도 외부 API는 호출되지 않습니다.</p></section>
 
         {databaseError ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>데이터베이스 확인이 필요합니다</strong></div><p>{databaseError}</p></aside> : null}

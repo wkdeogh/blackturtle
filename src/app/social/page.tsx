@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SocialSubnav } from "@/components/social-subnav";
 import { SocialResults } from "@/components/social-results";
 import { XCollectionPanel } from "@/components/x-collection-panel";
 import { formatDateTime } from "@/lib/format";
@@ -26,9 +27,10 @@ export default async function SocialPage() {
     <main className="dashboard-page">
       <SiteHeader />
       <div className="page-shell dashboard-content">
+        <SocialSubnav />
         <section className="dashboard-hero compact-hero">
           <div><p className="kicker">X DATA</p><h1>X 모니터링 결과</h1><p className="hero-copy">X 원문 수집과 저장된 원문의 LLM 분석을 각각 실행합니다. LLM 재분석은 X API를 호출하지 않습니다.</p></div>
-          <div className="refresh-panel social-update-times"><span>LAST X COLLECTION</span><strong>{collectedAt ? formatDateTime(collectedAt) : "아직 없음"}</strong><span>LAST LLM ANALYSIS</span><strong>{analyzedAt ? formatDateTime(analyzedAt) : "아직 없음"}</strong><Link className="secondary-link" href="/settings">모니터링 계정 관리 →</Link></div>
+          <div className="refresh-panel social-update-times"><span>LAST X COLLECTION</span><strong>{collectedAt ? formatDateTime(collectedAt) : "아직 없음"}</strong><span>LAST LLM ANALYSIS</span><strong>{analyzedAt ? formatDateTime(analyzedAt) : "아직 없음"}</strong></div>
         </section>
 
         {missing.length || databaseError ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>{databaseError ? "데이터베이스 확인이 필요합니다" : "X 설정이 남아 있습니다"}</strong></div><p>{databaseError || `미설정 환경 변수: ${missing.join(", ")}`}</p><p className="setup-help">저장소의 <code>SETUP.html</code>과 <code>.env.example</code>을 확인하세요.</p></aside> : null}

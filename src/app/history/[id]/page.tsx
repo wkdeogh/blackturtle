@@ -3,6 +3,7 @@ import { MacroResults } from "@/components/macro-results";
 import { MarketResults } from "@/components/market-results";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SocialSubnav } from "@/components/social-subnav";
 import { SocialResults } from "@/components/social-results";
 import { formatDateTime } from "@/lib/format";
 import { getSnapshotById, getSnapshotSource } from "@/lib/supabase";
@@ -24,6 +25,7 @@ export default async function HistoryDetailPage({ params }: { params: Promise<{ 
     <main className="dashboard-page">
       <SiteHeader />
       <div className="page-shell dashboard-content">
+        <SocialSubnav />
         <Link className="history-back" href="/history">← 히스토리 목록</Link>
         {databaseError ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>데이터베이스 확인이 필요합니다</strong></div><p>{databaseError}</p></aside> : null}
         {!snapshot ? <section className="empty-state social-empty"><div className="empty-orbit"><span>0</span></div><p className="kicker">NOT FOUND</p><h2>해당 갱신 기록이 없습니다.</h2><p>보관 개수 제한으로 정리됐거나 존재하지 않는 주소입니다.</p></section> : (

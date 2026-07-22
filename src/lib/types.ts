@@ -145,3 +145,77 @@ export interface StoredSnapshot {
   createdAt: string;
   payload: DashboardSnapshot;
 }
+
+export type ComprehensiveAnalysisRunState = "running" | "success" | "failed";
+export type ComprehensiveAnalysisStage = "queued" | "analyzing" | "saving" | "completed" | "failed";
+export type AnalysisConfidence = "높음" | "보통" | "낮음";
+
+export interface ComprehensiveAnalysisRunStatus {
+  id: string;
+  snapshotId: string | null;
+  status: ComprehensiveAnalysisRunState;
+  stage: ComprehensiveAnalysisStage;
+  workflowRunId: string | null;
+  model: string;
+  estimatedInputTokens: number;
+  startedAt: string;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+export interface ComprehensiveAnalysisReport {
+  version: 1;
+  generatedAt: string;
+  sourceSnapshotId: string;
+  sourceSnapshotGeneratedAt: string;
+  model: string;
+  estimatedInputTokens: number;
+  headline: string;
+  executiveSummary: string;
+  marketRegime: {
+    label: string;
+    summary: string;
+    evidence: string[];
+  };
+  keyInsights: Array<{
+    title: string;
+    analysis: string;
+    evidence: string[];
+    investorImplication: string;
+    confidence: AnalysisConfidence;
+  }>;
+  opportunities: Array<{
+    title: string;
+    rationale: string;
+    conditions: string[];
+    risks: string[];
+    relatedAssets: string[];
+  }>;
+  risks: Array<{
+    title: string;
+    transmission: string;
+    watchSignals: string[];
+    relatedAssets: string[];
+  }>;
+  scenarios: Array<{
+    name: string;
+    conditions: string[];
+    marketImpact: string;
+    response: string;
+  }>;
+  watchlist: Array<{
+    item: string;
+    currentContext: string;
+    whyItMatters: string;
+    trigger: string;
+  }>;
+  dataCaveats: string[];
+  bottomLine: string;
+}
+
+export interface StoredComprehensiveAnalysis {
+  id: string;
+  snapshotId: string | null;
+  createdAt: string;
+  report: ComprehensiveAnalysisReport;
+}
