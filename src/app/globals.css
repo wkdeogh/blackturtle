@@ -200,8 +200,6 @@ a { color: inherit; }
 .chart-data-line { fill: none; stroke: var(--green-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .macro-line-chart.risk .chart-data-line { stroke: #e38336; }
 .macro-line-chart.sentiment .chart-data-line { stroke: #50b991; }
-.chart-last-point { fill: var(--card); stroke: var(--green-2); stroke-width: 1.4; }
-.macro-line-chart.risk .chart-last-point { stroke: #e38336; }
 .macro-line-dates { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 7px; font-variant-numeric: tabular-nums; }
 .macro-line-dates time:nth-child(2) { text-align: center; }
 .macro-line-dates time:last-child { text-align: right; }

@@ -36,7 +36,6 @@ export function MacroLineChart({
   const first = points[0];
   const middle = points[Math.floor(points.length / 2)];
   const last = points.at(-1)!;
-  const lastCoordinate = coordinates.at(-1)!;
 
   return (
     <div className={`macro-line-chart ${tone}`}>
@@ -47,7 +46,6 @@ export function MacroLineChart({
         <line className="chart-grid-line" x1="0" y1="75" x2="100" y2="75" />
         {zeroY === null ? null : <line className="chart-zero-line" x1="0" y1={zeroY} x2="100" y2={zeroY} />}
         <polyline className="chart-data-line" points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")} vectorEffect="non-scaling-stroke" />
-        <circle className="chart-last-point" cx={lastCoordinate.x} cy={lastCoordinate.y} r="1.8" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="macro-line-dates"><time dateTime={first.date}>{first.date}</time><time dateTime={middle.date}>{middle.date}</time><time dateTime={last.date}>{last.date}</time></div>
     </div>
