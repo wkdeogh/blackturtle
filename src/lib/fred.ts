@@ -29,6 +29,11 @@ export const FRED_GUIDES = Object.fromEntries(
   SERIES.map(({ id, description, readingGuide }) => [id, { description, readingGuide }]),
 ) as Record<string, { description: string; readingGuide: string }>;
 
+FRED_GUIDES.WTI_FUTURES_FRONT = {
+  description: "NYMEX에서 거래되는 WTI 원유 선물 중 만기가 가장 가까운 활성 계약의 일간 가격입니다. 정산가가 있으면 정산가를, 없으면 종가를 사용합니다.",
+  readingGuide: "현물보다 선물이 높으면 콘탱고, 낮으면 백워데이션 가능성을 봅니다. 이 차트는 연속선물이 아니라 현재 최근월물 개별 계약이므로 롤오버 뒤에는 계약과 과거 선이 바뀝니다.",
+};
+
 interface FredResponse {
   observations?: Array<{ date: string; value: string }>;
   error_message?: string;

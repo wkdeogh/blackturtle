@@ -13,12 +13,17 @@ export function MacroCard({ series }: { series: MacroSeries }) {
   const signal = getMacroSignal(series);
   const isWide = series.id === "VIXCLS" || series.id === "T10Y2Y";
   const tone = series.id === "VIXCLS" ? "risk" : "default";
+  const isWtiFutures = series.id === "WTI_FUTURES_FRONT";
+  const sourceHref = isWtiFutures
+    ? "https://www.cmegroup.com/markets/energy/crude-oil/light-sweet-crude.quotes.html"
+    : `https://fred.stlouisfed.org/series/${series.id}`;
+  const sourceLabel = isWtiFutures ? `${series.label} CME 원문` : `${series.label} FRED 원문`;
 
   return (
     <article className={isWide ? "macro-card wide" : "macro-card"}>
       <div className="macro-card-head">
         <div><span className="data-tag">{series.group}</span><h3>{series.label}</h3></div>
-        <a className="source-link" href={`https://fred.stlouisfed.org/series/${series.id}`} target="_blank" rel="noreferrer" aria-label={`${series.label} FRED 원문`}>↗</a>
+        <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" aria-label={sourceLabel}>↗</a>
       </div>
       <div className="macro-value-row">
         <strong>{formatValue(series.current, series.decimals)}</strong><span>{series.unit}</span>

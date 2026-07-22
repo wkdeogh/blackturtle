@@ -110,6 +110,7 @@ export function getMacroSignal(series: MacroSeries): MacroSignal {
       if (series.current >= 20) return signal("watch", `VIX ${format(series.current, 2)}로 시장 불안이 확대된 구간입니다.`);
       return signal("good", `VIX ${format(series.current, 2)}로 변동성 부담이 비교적 낮습니다.`);
     case "DCOILWTICO":
+    case "WTI_FUTURES_FRONT":
       if (series.current < 45) return signal("risk", `WTI ${format(series.current, 2)}달러로 원유 수요 약화 가능성을 확인할 구간입니다.`);
       if (series.current < 55) return signal("watch", `WTI ${format(series.current, 2)}달러로 낮은 가격의 원인을 지켜볼 구간입니다.`);
       if (series.current <= 85) return signal("good", `WTI ${format(series.current, 2)}달러로 수요와 물가 부담이 비교적 균형적인 구간입니다.`);
