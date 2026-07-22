@@ -64,6 +64,8 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
     refreshSource: source,
     macroUpdatedAt: source === "macro" ? now : previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
     socialUpdatedAt: source === "social" ? now : previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
+    socialCollectedAt: source === "social" ? now : previous?.payload.socialCollectedAt,
+    socialAnalyzedAt: source === "social" ? now : previous?.payload.socialAnalyzedAt,
     macro,
     social,
   };

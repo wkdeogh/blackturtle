@@ -9,6 +9,7 @@ interface XCollectionPanelProps {
   initialPerAccountPostLimit: number | null;
   initialTotalPostLimit: number | null;
   accountCount: number;
+  storedPostCount: number;
   initialRun: RefreshRunStatus | null;
 }
 
@@ -17,24 +18,26 @@ export function XCollectionPanel({
   initialPerAccountPostLimit,
   initialTotalPostLimit,
   accountCount,
+  storedPostCount,
   initialRun,
 }: XCollectionPanelProps) {
   const refresh = useRefreshJob("social", initialRun);
   const [lookbackDays, setLookbackDays] = useState(initialLookbackDays);
   const [perAccountPostLimit, setPerAccountPostLimit] = useState(initialPerAccountPostLimit?.toString() ?? "");
   const [totalPostLimit, setTotalPostLimit] = useState(initialTotalPostLimit?.toString() ?? "");
-  const [saving, setSaving] = useState(false);
+  const [action, setAction] = useState<"collect" | "analyze" | null>(null);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
   async function saveAndCollect() {
-    if (saving || refresh.running || !accountCount) return;
-    setSaving(true);
+    if (action || refresh.running || !accountCount) return;
+    setAction("collect");
     setIsError(false);
     setMessage("수집 설정을 저장하고 작업을 등록하는 중입니다…");
     try {
       setMessage("");
       await refresh.startRefresh({
+        socialMode: "collect_only",
         collectionSettings: {
           lookbackDays,
           perAccountPostLimit: perAccountPostLimit ? Number(perAccountPostLimit) : null,
@@ -45,7 +48,22 @@ export function XCollectionPanel({
       setIsError(true);
       setMessage(caught instanceof Error ? caught.message : "X 데이터를 수집하지 못했습니다.");
     } finally {
-      setSaving(false);
+      setAction(null);
+    }
+  }
+
+  async function analyzeStoredPosts() {
+    if (action || refresh.running || !storedPostCount) return;
+    setAction("analyze");
+    setIsError(false);
+    setMessage("");
+    try {
+      await refresh.startRefresh({ socialMode: "analyze_only" });
+    } catch (caught) {
+      setIsError(true);
+      setMessage(caught instanceof Error ? caught.message : "저장된 게시물을 분석하지 못했습니다.");
+    } finally {
+      setAction(null);
     }
   }
 
@@ -74,11 +92,17 @@ export function XCollectionPanel({
         </div>
       </div>
       <div className="collection-action-row">
-        <p>빈 상한은 날짜 조건만 적용합니다. 범위가 넓을수록 X API 호출량과 비용이 늘 수 있습니다.</p>
-        <button className="primary-button refresh-button" type="button" onClick={saveAndCollect} disabled={saving || refresh.running || !accountCount}>
-          <span className={saving || refresh.running ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
-          {saving ? "설정 저장 중" : refresh.running ? (refresh.ownRun ? "수집 중" : "다른 갱신 중") : "설정 저장 후 X 수집"}
-        </button>
+        <p>X 수집은 원문만 저장하며 X API 비용이 발생할 수 있습니다. LLM 재분석은 저장된 {storedPostCount}개 게시물만 사용하므로 X API를 호출하지 않습니다.</p>
+        <div className="collection-buttons">
+          <button className="secondary-button refresh-button" type="button" onClick={analyzeStoredPosts} disabled={Boolean(action) || refresh.running || !storedPostCount}>
+            <span className={action === "analyze" ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">◇</span>
+            {action === "analyze" ? "분석 요청 중" : refresh.running ? "작업 진행 중" : "저장 데이터 LLM 재분석"}
+          </button>
+          <button className="primary-button refresh-button" type="button" onClick={saveAndCollect} disabled={Boolean(action) || refresh.running || !accountCount}>
+            <span className={action === "collect" ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
+            {action === "collect" ? "설정 저장 중" : refresh.running ? (refresh.ownRun ? "작업 진행 중" : "다른 갱신 중") : "설정 저장 후 X만 수집"}
+          </button>
+        </div>
       </div>
       {message || refresh.message ? <p className={isError || refresh.isError ? "action-message error" : "action-message"} role="status">{message || refresh.message}</p> : null}
     </section>

@@ -189,6 +189,7 @@ export function finalizeXCollection(
   const posts = prepared.rawPosts.map((post): SocialPost => ({
     ...post,
     mentions: analyses.get(post.id) ?? [],
+    analyzed: analyses.has(post.id),
   }));
   return {
     analysisModel: prepared.analysisModel,
@@ -196,7 +197,30 @@ export function finalizeXCollection(
     accounts: prepared.accounts,
     posts,
     companies: aggregateMentions(posts),
-    analyzedPostCount: posts.length,
+    analyzedPostCount: posts.filter((post) => post.analyzed !== false).length,
+  };
+}
+
+export function finalizeXCollectionWithoutAnalysis(
+  prepared: PreparedXCollection,
+  previous?: DashboardSnapshot["social"],
+): DashboardSnapshot["social"] {
+  const previousPosts = new Map(previous?.posts.map((post) => [post.id, post]) ?? []);
+  const posts = prepared.rawPosts.map((post): SocialPost => {
+    const saved = previousPosts.get(post.id);
+    return {
+      ...post,
+      mentions: saved?.mentions ?? [],
+      analyzed: saved ? saved.analyzed !== false : false,
+    };
+  });
+  return {
+    analysisModel: previous?.analysisModel,
+    periodDays: prepared.periodDays,
+    accounts: prepared.accounts,
+    posts,
+    companies: aggregateMentions(posts),
+    analyzedPostCount: posts.filter((post) => post.analyzed !== false).length,
   };
 }
 

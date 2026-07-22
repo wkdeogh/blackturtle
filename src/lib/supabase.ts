@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { DashboardSnapshot, RefreshRunStatus, RefreshSource, StoredSnapshot } from "@/lib/types";
+import type { DashboardSnapshot, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -257,15 +257,15 @@ export async function getXMonitorSettings(): Promise<XMonitorSettingsResult> {
   };
 }
 
-export function getMissingConfiguration(source?: RefreshSource): string[] {
+export function getMissingConfiguration(source?: RefreshSource, socialMode: SocialRefreshMode = "collect_and_analyze"): string[] {
   const required: Array<[string, string | undefined]> = [
     ["SUPABASE_URL", process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL],
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
   ];
   if (!source || source === "macro") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
   if (!source || source === "social") {
-    required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
-    required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);
+    if (socialMode !== "analyze_only") required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
+    if (socialMode !== "collect_only") required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);
   }
   return required.filter(([, value]) => !value).map(([name]) => name);
 }

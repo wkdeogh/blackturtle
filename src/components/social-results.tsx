@@ -8,6 +8,7 @@ interface SocialResultsData {
   analysisModel?: string;
   topicModel?: string;
   topicSummaryError?: string;
+  topicSummaryStale?: boolean;
   topics?: TopicSummary[];
   periodDays: number;
   accounts: Array<{ username: string }>;
@@ -78,7 +79,7 @@ function PostCard({ post }: { post: SocialPost }) {
       <div className="post-foot">
         <div className="mention-chips">
           {post.mentions.map((mention) => <span className={`mention-chip ${mention.sentiment}`} key={mention.ticker}>${mention.ticker} · {mention.sentiment === "positive" ? "긍정" : mention.sentiment === "negative" ? "부정" : "중립"}</span>)}
-          {!post.mentions.length ? <span className="mention-chip none">기업 미분류</span> : null}
+          {post.analyzed === false ? <span className="mention-chip pending">분석 대기</span> : !post.mentions.length ? <span className="mention-chip none">기업 미분류</span> : null}
         </div>
         <a href={post.url} target="_blank" rel="noreferrer">원문 ↗</a>
       </div>
@@ -101,6 +102,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
     () => selectedAccount === "all" ? social.companies : aggregateCompanies(filteredPosts),
     [filteredPosts, selectedAccount, social.companies],
   );
+  const filteredAnalyzedCount = filteredPosts.filter((post) => post.analyzed !== false).length;
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
   const posts = expanded ? filteredPosts : filteredPosts.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
@@ -110,8 +112,9 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
   return (
     <>
       <section className="section-block topic-section">
-        <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>전체 계정 · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "다음 수집부터 생성"}</p></div>
-        {topics.length ? <div className="topic-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "기존 결과입니다. 다음 X 수집부터 주요 주제 요약이 생성됩니다."}</div>}
+        <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>전체 계정 · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>
+        {social.topicSummaryStale ? <div className="topic-stale-notice">최근 X 수집분은 아직 반영되지 않았습니다. 저장 데이터 LLM 재분석을 실행하면 갱신됩니다.</div> : null}
+        {topics.length ? <div className="topic-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topicSummaryStale ? "저장 데이터 LLM 재분석을 실행하면 주요 주제를 생성합니다." : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "아직 주요 주제 분석 결과가 없습니다."}</div>}
         <p className="topic-footnote">게시물 하나가 여러 주제와 관련되면 각 주제에 함께 집계될 수 있습니다. 전체 수집 게시물의 공통 흐름을 요약하며 투자 조언이 아닙니다.</p>
       </section>
       <section className="result-filter" aria-label="X 결과 계정 필터">
@@ -119,7 +122,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         <label htmlFor="social-account-filter">계정 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((username) => <option value={username} key={username}>@{username}</option>)}</select></label>
       </section>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · {filteredPosts.length}개 게시물</p></div>
+        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
         <div className="signal-grid">
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
@@ -130,7 +133,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
             <span className="note-index">NOTE 01</span><h3>카운트 해석법</h3>
             <p>한 게시물에 여러 기업이 나오면 기업마다 1회씩 집계합니다. 같은 게시물은 ID로 중복 제거됩니다.</p>
             <div className="legend"><span><i className="positive" />긍정</span><span><i className="neutral" />중립</span><span><i className="negative" />부정</span></div>
-            <small>{social.analysisModel ? `OpenAI ${social.analysisModel} 문맥 분석입니다.` : "기존 규칙 기반으로 분석된 스냅샷입니다."} 결과는 투자 조언이 아닙니다.</small>
+            <small>{social.analysisModel ? `OpenAI ${social.analysisModel} 문맥 분석입니다.` : "아직 LLM 분석 결과가 없습니다."} 분석 대기 게시물은 집계에서 제외하며 결과는 투자 조언이 아닙니다.</small>
           </aside>
         </div>
       </section>

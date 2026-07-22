@@ -3,7 +3,7 @@ import { getRun, start } from "workflow/api";
 import { isAuthenticated } from "@/lib/auth";
 import { isSameOriginPost } from "@/lib/session";
 import { getLatestRefreshRun, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
-import type { RefreshSource } from "@/lib/types";
+import type { RefreshSource, SocialRefreshMode } from "@/lib/types";
 import { normalizeXCollectionSettings } from "@/lib/x-collection-settings";
 import { refreshDataWorkflow } from "@/workflows/refresh-data";
 
@@ -38,12 +38,17 @@ export async function POST(request: Request) {
   if (!(await isAuthenticated())) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
 
   let source: RefreshSource;
+  let socialMode: SocialRefreshMode = "collect_and_analyze";
   let collectionSettings: ReturnType<typeof normalizeXCollectionSettings> = null;
   try {
-    const body = (await request.json()) as { source?: unknown; collectionSettings?: unknown };
+    const body = (await request.json()) as { source?: unknown; socialMode?: unknown; collectionSettings?: unknown };
     if (body.source !== "macro" && body.source !== "social") throw new Error();
     source = body.source;
-    if (source === "social" && body.collectionSettings !== undefined) {
+    if (source === "social") {
+      if (body.socialMode !== undefined && body.socialMode !== "collect_and_analyze" && body.socialMode !== "collect_only" && body.socialMode !== "analyze_only") throw new Error();
+      socialMode = (body.socialMode as SocialRefreshMode | undefined) ?? "collect_and_analyze";
+    }
+    if (source === "social" && socialMode !== "analyze_only" && body.collectionSettings !== undefined) {
       collectionSettings = normalizeXCollectionSettings(body.collectionSettings);
       if (!collectionSettings) {
         return NextResponse.json({ error: "수집 기간과 게시물 상한을 확인하세요. 상한은 비우거나 1 이상의 정수를 입력해야 합니다." }, { status: 400 });
@@ -53,7 +58,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "갱신 대상이 올바르지 않습니다." }, { status: 400 });
   }
 
-  const missing = getMissingConfiguration(source);
+  const missing = getMissingConfiguration(source, socialMode);
   if (missing.length) {
     return NextResponse.json({ error: `설정되지 않은 환경 변수: ${missing.join(", ")}` }, { status: 503 });
   }
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
       if (error) throw new Error(`수집 설정 저장 실패: ${error.message}`);
     }
 
-    const workflowRun = await start(refreshDataWorkflow, [runId as string, source]);
+    const workflowRun = await start(refreshDataWorkflow, [runId as string, source, socialMode]);
     await supabase.rpc("attach_refresh_workflow", { p_run_id: runId, p_workflow_run_id: workflowRun.runId });
     const run = await getLatestRefreshRun();
     return NextResponse.json({ ok: true, run }, { status: 202 });

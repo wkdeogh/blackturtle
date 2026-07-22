@@ -19,6 +19,7 @@ export interface MacroSeries {
 }
 
 export type RefreshSource = "macro" | "social";
+export type SocialRefreshMode = "collect_and_analyze" | "collect_only" | "analyze_only";
 export type RefreshRunState = "running" | "success" | "failed";
 export type RefreshStage = "queued" | "collecting" | "saving" | "completed" | "failed";
 
@@ -49,6 +50,7 @@ export interface SocialPost {
   url: string;
   lang?: string;
   mentions: CompanyMention[];
+  analyzed?: boolean;
 }
 
 export interface MentionSummary {
@@ -81,11 +83,14 @@ export interface DashboardSnapshot {
   refreshSource?: RefreshSource;
   macroUpdatedAt?: string;
   socialUpdatedAt?: string;
+  socialCollectedAt?: string;
+  socialAnalyzedAt?: string;
   macro: MacroSeries[];
   social: {
     analysisModel?: string;
     topicModel?: string;
     topicSummaryError?: string;
+    topicSummaryStale?: boolean;
     topics?: TopicSummary[];
     periodDays: number;
     accounts: XAccountCursor[];

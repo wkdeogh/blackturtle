@@ -2,13 +2,16 @@ import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runne
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
-import type { DashboardSnapshot, MacroSeries, RefreshSource, TopicSummary } from "@/lib/types";
-import { finalizeXCollection, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
+import type { DashboardSnapshot, MacroSeries, RefreshSource, SocialRefreshMode, TopicSummary } from "@/lib/types";
+import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
 
 interface SocialWorkflowContext {
   generatedAt: string;
   macro: MacroSeries[];
   macroUpdatedAt?: string;
+  socialCollectedAt?: string;
+  socialAnalyzedAt?: string;
+  previousSocial?: DashboardSnapshot["social"];
   prepared: PreparedXCollection;
 }
 
@@ -39,7 +42,7 @@ async function collectMacroAndStoreDraft(runId: string) {
 
 async function collectSocialPosts(): Promise<SocialWorkflowContext> {
   "use step";
-  const missing = getMissingConfiguration("social");
+  const missing = getMissingConfiguration("social", "collect_only");
   if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
 
   const previous = await getLatestSnapshot();
@@ -60,12 +63,47 @@ async function collectSocialPosts(): Promise<SocialWorkflowContext> {
     generatedAt: new Date().toISOString(),
     macro: previous?.payload.macro ?? [],
     macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    socialAnalyzedAt: previous?.payload.socialAnalyzedAt ?? previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
+    previousSocial: previous?.payload.social,
     prepared,
   };
 }
 
 // X는 유료 호출이므로 실패 시 Workflow가 자동으로 같은 수집을 반복하지 않는다.
 collectSocialPosts.maxRetries = 0;
+
+async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
+  "use step";
+  const missing = getMissingConfiguration("social", "analyze_only");
+  if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
+
+  const previous = await getLatestSnapshot();
+  if (!previous?.payload.social.posts.length) {
+    throw new Error("먼저 X 게시물 수집만 실행해 저장된 게시물을 만드세요.");
+  }
+  const analysisModel = process.env.OPENAI_MODEL ?? "gpt-5-nano";
+  const rawPosts = previous.payload.social.posts.map(({ mentions: _mentions, analyzed: _analyzed, ...post }) => {
+    void _mentions;
+    void _analyzed;
+    return post;
+  });
+  return {
+    generatedAt: new Date().toISOString(),
+    macro: previous.payload.macro,
+    macroUpdatedAt: previous.payload.macroUpdatedAt ?? previous.payload.generatedAt,
+    socialCollectedAt: previous.payload.socialCollectedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
+    socialAnalyzedAt: previous.payload.socialAnalyzedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
+    previousSocial: previous.payload.social,
+    prepared: {
+      analysisModel,
+      periodDays: previous.payload.social.periodDays,
+      accounts: previous.payload.social.accounts,
+      rawPosts,
+      postsToAnalyze: rawPosts,
+      reusedAnalysis: [],
+    },
+  };
+}
 
 async function analyzeSocialBatch(posts: RawSocialPost[], model: string): Promise<PostAnalysisResult[]> {
   "use step";
@@ -109,16 +147,46 @@ async function storeSocialDraft(
     refreshSource: "social",
     macroUpdatedAt: context.macroUpdatedAt,
     socialUpdatedAt: context.generatedAt,
+    socialCollectedAt: context.socialCollectedAt ?? context.generatedAt,
+    socialAnalyzedAt: context.generatedAt,
     macro: context.macro,
     social: {
       ...social,
       topicModel: topicResult.model,
       topicSummaryError: topicResult.error,
+      topicSummaryStale: false,
       topics: topicResult.topics,
     },
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
+}
+
+async function storeSocialCollectionDraft(runId: string, context: SocialWorkflowContext) {
+  "use step";
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+
+  const social = finalizeXCollectionWithoutAnalysis(context.prepared, context.previousSocial);
+  const snapshot: DashboardSnapshot = {
+    version: 1,
+    generatedAt: context.generatedAt,
+    refreshSource: "social",
+    macroUpdatedAt: context.macroUpdatedAt,
+    socialUpdatedAt: context.generatedAt,
+    socialCollectedAt: context.generatedAt,
+    socialAnalyzedAt: context.socialAnalyzedAt,
+    macro: context.macro,
+    social: {
+      ...social,
+      topicModel: context.previousSocial?.topicModel,
+      topicSummaryError: context.previousSocial?.topicSummaryError,
+      topicSummaryStale: true,
+      topics: context.previousSocial?.topics,
+    },
+  };
+  const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
+  if (error) throw new Error(`X 수집 결과 임시 저장 실패: ${error.message}`);
 }
 
 async function publishRefresh(runId: string) {
@@ -138,7 +206,11 @@ async function recoverDraftOrFail(runId: string, message: string): Promise<boole
   return Boolean(data);
 }
 
-export async function refreshDataWorkflow(runId: string, source: RefreshSource) {
+export async function refreshDataWorkflow(
+  runId: string,
+  source: RefreshSource,
+  socialMode: SocialRefreshMode = "collect_and_analyze",
+) {
   "use workflow";
   let stage = "갱신 준비";
   try {
@@ -147,15 +219,21 @@ export async function refreshDataWorkflow(runId: string, source: RefreshSource) 
     if (source === "macro") {
       stage = "FRED 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
-    } else {
-      stage = "X 게시물 수집";
+    } else if (socialMode === "collect_only") {
+      stage = "X 게시물만 수집";
       const context = await collectSocialPosts();
+      stage = "X 원문 임시 저장";
+      await storeSocialCollectionDraft(runId, context);
+      generatedAt = context.generatedAt;
+    } else {
+      stage = socialMode === "analyze_only" ? "저장된 X 게시물 준비" : "X 게시물 수집";
+      const context = socialMode === "analyze_only" ? await loadStoredSocialPosts() : await collectSocialPosts();
       const posts = context.prepared.postsToAnalyze;
       const batchCount = Math.ceil(posts.length / OPENAI_BATCH_SIZE);
       const analysis: PostAnalysisResult[] = [];
       for (let index = 0; index < posts.length; index += OPENAI_BATCH_SIZE) {
         const batchNumber = Math.floor(index / OPENAI_BATCH_SIZE) + 1;
-        stage = `OpenAI 분석 ${batchNumber}/${batchCount}`;
+        stage = `OpenAI 기업 분석 ${batchNumber}/${batchCount}`;
         analysis.push(...await analyzeSocialBatch(
           posts.slice(index, index + OPENAI_BATCH_SIZE),
           context.prepared.analysisModel,

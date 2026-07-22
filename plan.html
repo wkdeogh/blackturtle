@@ -146,7 +146,7 @@
         <div class="section-head"><h2>첫 버전의 범위</h2><p class="sub">지금 필요한 핵심 루프를 작게 완성하고, 이후 기능은 데이터 구조를 깨지 않고 덧붙인다.</p></div>
         <div class="grid">
           <article class="card span-4"><span class="number">1</span><h3>페이지별 현황 보기</h3><p>FRED 매크로, X 분석, 갱신 히스토리, X 계정 설정을 독립 페이지로 나누고 모바일 상단 탭으로 빠르게 이동한다.</p></article>
-          <article class="card span-4"><span class="number">2</span><h3>소스별 수동 갱신</h3><p>FRED 버튼은 FRED만, X 수집 버튼은 X만 호출한다. 실행 중 중복 클릭은 막고 실패하면 기존 스냅샷을 유지한다.</p></article>
+          <article class="card span-4"><span class="number">2</span><h3>소스별 수동 갱신</h3><p>FRED 버튼은 FRED만 호출한다. X 원문 수집과 저장 원문의 LLM 재분석을 분리해 테스트하며, 실행 중 중복 클릭은 막고 실패하면 기존 스냅샷을 유지한다.</p></article>
           <article class="card span-4"><span class="number">3</span><h3>처음에는 빈 화면</h3><p>성공 스냅샷이 0개면 가짜 수치를 만들지 않고 “아직 갱신된 데이터가 없습니다”와 첫 갱신 버튼을 보여준다.</p></article>
         </div>
       </section>
@@ -171,7 +171,7 @@
         <div class="grid">
           <article class="card span-4"><span class="badge">Header</span><h3>공통 내비게이션</h3><ul><li>FRED / X / 히스토리 / 계정 설정 탭</li><li>Black Turtle 로고·로그아웃</li><li>페이지별 마지막 갱신 시각</li><li>오류 발생 시 기존 데이터 유지 안내</li></ul></article>
           <article class="card span-4"><span class="badge blue">Macro</span><h3>매크로 보드</h3><ul><li>현재값·전기 대비·업데이트일</li><li>모든 차트 막대 아래 관측일</li><li>지표별 의미와 보는 법</li><li>FRED 시리즈 원문 링크</li></ul></article>
-          <article class="card span-4"><span class="badge amber">Signal</span><h3>X 인텔리전스</h3><ul><li>수집 기간·계정당/전체 상한과 수집 버튼</li><li>기업별 총 언급량·감성 카운트</li><li>계정 추가·삭제는 별도 설정 탭</li><li>근거 문장과 X 원문 링크</li></ul></article>
+          <article class="card span-4"><span class="badge amber">Signal</span><h3>X 인텔리전스</h3><ul><li>수집 기간·계정당/전체 상한과 X 전용 수집 버튼</li><li>저장 데이터만 사용하는 LLM 재분석 버튼</li><li>기업별 총 언급량·감성 카운트</li><li>계정 추가·삭제는 별도 설정 탭</li><li>근거 문장과 X 원문 링크</li></ul></article>
           <article class="card span-12"><h3>빈 상태</h3><p>“아직 저장된 데이터가 없습니다. 첫 갱신은 계정 수와 게시물 양에 따라 시간이 걸릴 수 있습니다.”라는 설명과 하나의 명확한 <b>첫 데이터 갱신</b> 버튼만 제공한다.</p></article>
         </div>
       </section>
@@ -202,8 +202,8 @@
         <div class="grid">
           <article class="card span-4"><span class="number">1</span><h3>기업 식별</h3><p>LLM이 <code>$NVDA</code> 같은 cashtag, 티커, 기업명, 제품명·경영진 언급을 문맥에서 식별한다. 상장기업이 아니거나 불명확한 대상은 제외한다.</p></article>
           <article class="card span-4"><span class="number">2</span><h3>기업별 판정</h3><p>각 후보에 대해 <code>positive | neutral | negative</code>, 신뢰도, 짧은 근거를 구조화된 형식으로 반환한다. 불확실하면 neutral 또는 미분류로 둔다.</p></article>
-          <article class="card span-4"><span class="number">3</span><h3>버전·검수</h3><p>분석기와 프롬프트 버전을 저장한다. 낮은 신뢰도 결과를 모아 사전과 규칙을 보정하고, 향후 과거 게시물 재분석 기능을 추가한다.</p></article>
-          <article class="card span-12 rule"><h3>LLM 분석 엔진</h3><p>OpenAI Responses API와 Structured Outputs를 사용해 게시물별 기업·감성·신뢰도·근거를 받고, 전체 게시물의 반복 주제를 관련 게시물 수 기준으로 정리한다. 기업 분류는 <code>gpt-5-nano</code>, 주제 종합은 <code>gpt-5-mini</code>를 기본으로 사용하며 같은 분류 모델로 이미 분석한 게시물은 저장 결과를 재사용한다.</p></article>
+          <article class="card span-4"><span class="number">3</span><h3>재분석·검수</h3><p>분석 모델을 저장하고, X API를 다시 호출하지 않은 채 현재 저장된 게시물 전체의 기업 감성과 주제를 다시 분석할 수 있다.</p></article>
+          <article class="card span-12 rule"><h3>LLM 분석 엔진</h3><p>OpenAI Responses API와 Structured Outputs를 사용해 게시물별 기업·감성·신뢰도·근거를 받고, 전체 게시물의 반복 주제를 관련 게시물 수 기준으로 정리한다. 기업 분류는 <code>gpt-5-nano</code>, 주제 종합은 <code>gpt-5-mini</code>를 기본으로 사용한다. 테스트 단계에서는 X 원문 수집과 LLM 분석을 분리하고, 재분석은 저장된 게시물만 사용한다.</p></article>
         </div>
       </section>
 

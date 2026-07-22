@@ -113,7 +113,7 @@ git remote -v</code></pre>
           <label class="check"><input type="checkbox" data-check><span><b>Pay-per-use 예산·한도 확인</b><span>X API는 현재 사용량 기반 접근을 안내하고 있습니다. 구현 전에 사용자 조회와 사용자 게시물 timeline의 예상 호출량·비용을 Console에서 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>Bearer Token 보관</b><span>서버 전용 변수 <code>X_BEARER_TOKEN</code>으로 저장할 값을 안전하게 보관합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>모니터링 계정 목록 작성</b><span><code>@</code>를 제외한 username을 한 줄에 하나씩 준비합니다. 계정 수가 많을수록 호출량과 분석 비용이 늘어납니다.</span></span></label>
-          <div class="box"><h3>현재 수집 규칙</h3><ul><li>각 계정의 원글을 수집하고 reply와 repost는 기본 제외</li><li><code>X 모니터링</code> 탭에서 최근 1·3·7·14·30일 중 선택</li><li>계정당·전체 게시물 상한은 비워 두면 날짜 조건만 적용</li><li>보호 계정과 접근 불가 게시물은 수집 대상에서 제외</li></ul></div>
+          <div class="box"><h3>현재 수집 규칙</h3><ul><li>각 계정의 원글을 수집하고 reply와 repost는 기본 제외</li><li><code>X 모니터링</code> 탭에서 최근 1·3·7·14·30일 중 선택</li><li>계정당·전체 게시물 상한은 비워 두면 날짜 조건만 적용</li><li><code>X만 수집</code>은 원문만 저장하고, <code>저장 데이터 LLM 재분석</code>은 X API 호출 없이 저장된 게시물만 분석</li><li>보호 계정과 접근 불가 게시물은 수집 대상에서 제외</li></ul></div>
           <div class="links"><a href="https://developer.x.com/" target="_blank" rel="noreferrer">Developer Console ↗</a><a href="https://docs.x.com/x-api/getting-started/pricing" target="_blank" rel="noreferrer">Pricing / Usage ↗</a><a href="https://docs.x.com/x-api/users/get-user-by-username" target="_blank" rel="noreferrer">Username Lookup ↗</a><a href="https://docs.x.com/x-api/users/get-posts" target="_blank" rel="noreferrer">User Posts ↗</a></div>
         </div>
       </section>
@@ -169,11 +169,11 @@ X_TOTAL_POST_LIMIT=       # 선택: 비우면 무제한</code></pre>
         <div class="content">
           <label class="check"><input type="checkbox" data-check><span><b>로그인 전 접근 차단</b><span>시크릿 창에서 대시보드가 비밀번호 화면으로 이동하고, 갱신 API 직접 호출은 401로 차단되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>첫 접속 빈 상태</b><span>DB가 비어 있을 때 샘플 수치 대신 “데이터 없음”이 보이는지 확인합니다.</span></span></label>
-          <label class="check"><input type="checkbox" data-check><span><b>소스별 수동 갱신</b><span><code>FRED 매크로</code> 탭에서는 FRED만, <code>X 모니터링</code> 탭에서는 X만 갱신되고 각 마지막 갱신 시각이 따로 표시되는지 확인합니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>소스별 수동 갱신</b><span><code>FRED 매크로</code> 탭에서는 FRED만 갱신합니다. <code>X 모니터링</code> 탭에서는 X 원문 수집과 저장 데이터 LLM 재분석이 분리되고, 마지막 수집·분석 시각이 따로 표시되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>재접속과 장애 복구</b><span>재접속해도 이전 데이터가 남고, 잘못된 테스트 키로 갱신 실패 시에도 기존 스냅샷이 유지되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>지속 갱신 확인</b><span>갱신을 시작한 직후 페이지를 새로고침하거나 다른 탭으로 이동해도 상단의 갱신 상태가 유지되고, 완료 후 새 데이터와 히스토리가 표시되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>모바일 확인</b><span>실제 휴대폰에서 로그인, 스크롤, 필터, 갱신 버튼, X 원문 이동을 확인합니다.</span></span></label>
-          <label class="check"><input type="checkbox" data-check><span><b>X 모니터링 설정 저장</b><span><code>계정 설정</code> 탭에서 username을 저장하고 체크박스로 수집 계정을 활성화합니다. <code>X 모니터링</code> 탭에서는 수집 기간과 계정당·전체 게시물 상한을 정해 수집합니다. 상한을 비우면 날짜 조건만 적용됩니다.</span></span></label>
+          <label class="check"><input type="checkbox" data-check><span><b>X 수집과 재분석</b><span><code>계정 설정</code> 탭에서 수집 계정을 활성화한 뒤 수집 기간과 상한을 정해 <code>X만 수집</code>합니다. 새 게시물에 분석 대기가 표시되는지 확인하고, <code>저장 데이터 LLM 재분석</code> 후 기업 감성과 주요 주제가 갱신되는지 확인합니다.</span></span></label>
           <label class="check"><input type="checkbox" data-check><span><b>갱신 히스토리 확인</b><span><code>히스토리</code> 탭에서 과거 FRED/X 결과가 실행별로 열리는지 확인합니다. 기본 보관량은 30회이며 5~100회 사이에서 변경할 수 있고, 다음 갱신 성공 시 오래된 기록부터 정리됩니다.</span></span></label>
         </div>
       </section>
