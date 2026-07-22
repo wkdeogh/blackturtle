@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { getMacroSignal } from "@/lib/macro-signal";
 import { OPENAI_COMPREHENSIVE_REASONING_EFFORT } from "@/lib/openai-config";
-import type { ComprehensiveAnalysisReport, DashboardSnapshot } from "@/lib/types";
+import type { ComprehensiveAnalysisReport, DashboardSnapshot, MacroPoint, MacroSeries, MarketPoint, MarketSeries, SocialPost } from "@/lib/types";
 
 interface OpenAIResponse {
   output_text?: string;
@@ -105,6 +106,8 @@ Constraints:
 - Never fabricate prices, dates, causal links, probabilities, or company fundamentals.
 - Do not issue personalized buy/sell orders. Frame opportunities, risks, and responses as conditional research notes.
 - Write in clear, compact Korean. Preserve official indicator names, asset symbols, account names, and tickers when useful.
+- The input is a server-generated compact summary, not raw chart data. Period comparisons use the nearest stored observation at or before each target date.
+- X evidence contains aggregates and selected representative excerpts. Do not claim that unquoted posts were individually reviewed.
 
 Output length is a hard product constraint: the visible report should fit within roughly three mobile-screen scrolls. Prefer omission over repetition.
 - Headline: at most 30 Korean characters.
@@ -225,19 +228,204 @@ function outputText(body: OpenAIResponse): string | null {
   return null;
 }
 
+function round(value: number | null, decimals = 4): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function sortedPoints(points: Array<MacroPoint | MarketPoint>): Array<MacroPoint | MarketPoint> {
+  return points.filter((point) => point.date && Number.isFinite(point.value)).slice().sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function comparison(points: Array<MacroPoint | MarketPoint>, current: number, observationDate: string, days: number, decimals: number) {
+  const target = new Date(`${observationDate}T00:00:00Z`);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setUTCDate(target.getUTCDate() - days);
+  const targetDate = target.toISOString().slice(0, 10);
+  let candidate: MacroPoint | MarketPoint | null = null;
+  for (const point of points) {
+    if (point.date > targetDate) break;
+    candidate = point;
+  }
+  if (!candidate) return null;
+  const delta = current - candidate.value;
+  return {
+    date: candidate.date,
+    value: round(candidate.value, decimals),
+    delta: round(delta, Math.max(decimals, 2)),
+    percent_change: candidate.value === 0 ? null : round((delta / candidate.value) * 100, 2),
+  };
+}
+
+function recentRange(points: Array<MacroPoint | MarketPoint>, observationDate: string, days: number, decimals: number) {
+  const target = new Date(`${observationDate}T00:00:00Z`);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setUTCDate(target.getUTCDate() - days);
+  const targetDate = target.toISOString().slice(0, 10);
+  const recent = points.filter((point) => point.date >= targetDate && point.date <= observationDate);
+  if (!recent.length) return null;
+  const values = recent.map((point) => point.value);
+  return {
+    from: recent[0].date,
+    low: round(Math.min(...values), decimals),
+    high: round(Math.max(...values), decimals),
+  };
+}
+
+function fearGreedSignal(value: number): { label: string; detail: string } {
+  if (value < 25) return { label: "극단적 공포", detail: "위험회피가 매우 강한 구간" };
+  if (value < 45) return { label: "공포", detail: "투자자 불안이 우세한 구간" };
+  if (value <= 55) return { label: "중립", detail: "공포와 탐욕이 균형인 구간" };
+  if (value < 75) return { label: "탐욕", detail: "위험선호가 우세한 구간" };
+  return { label: "극단적 탐욕", detail: "과도한 낙관을 경계할 구간" };
+}
+
+function compactMacroSeries(series: MacroSeries) {
+  const points = sortedPoints(series.points);
+  const signal = series.id === "CNN_FEAR_GREED" ? fearGreedSignal(series.current) : getMacroSignal(series);
+  return {
+    id: series.id,
+    label: series.label,
+    group: series.group,
+    unit: series.unit,
+    observation_date: series.observationDate,
+    current: round(series.current, series.decimals),
+    previous: round(series.previous, series.decimals),
+    latest_change: round(series.change, Math.max(series.decimals, 2)),
+    status: { label: signal.label, detail: signal.detail },
+    comparisons: {
+      one_week: comparison(points, series.current, series.observationDate, 7, series.decimals),
+      one_month: comparison(points, series.current, series.observationDate, 30, series.decimals),
+      three_months: comparison(points, series.current, series.observationDate, 91, series.decimals),
+      one_year: comparison(points, series.current, series.observationDate, 365, series.decimals),
+    },
+    one_year_range: recentRange(points, series.observationDate, 365, series.decimals),
+  };
+}
+
+function compactMarketSeries(series: MarketSeries) {
+  const points = sortedPoints(series.points);
+  return {
+    id: series.id,
+    label: series.label,
+    symbol: series.symbol,
+    group: series.group,
+    instrument_type: series.instrumentType,
+    source_interval: series.interval,
+    benchmark: series.benchmark ?? null,
+    currency: series.currency,
+    observation_date: series.observationDate,
+    current: round(series.current, series.decimals),
+    latest_change: round(series.change, Math.max(series.decimals, 2)),
+    latest_change_percent: round(series.changePercent, 2),
+    three_year_peak: { value: round(series.peakValue, series.decimals), date: series.peakDate, drawdown_percent: round(series.drawdownPercent, 2) },
+    returns: {
+      one_week: comparison(points, series.current, series.observationDate, 7, series.decimals),
+      one_month: comparison(points, series.current, series.observationDate, 30, series.decimals),
+      three_months: comparison(points, series.current, series.observationDate, 91, series.decimals),
+      six_months: comparison(points, series.current, series.observationDate, 182, series.decimals),
+      one_year: comparison(points, series.current, series.observationDate, 365, series.decimals),
+      three_years: comparison(points, series.current, series.observationDate, 1095, series.decimals),
+    },
+    one_year_range: recentRange(points, series.observationDate, 365, series.decimals),
+  };
+}
+
+function compactText(value: string | undefined, maximum: number): string | null {
+  if (!value) return null;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.length <= maximum ? normalized : `${normalized.slice(0, maximum - 1).trim()}…`;
+}
+
+function representativePost(post: SocialPost | undefined) {
+  if (!post) return null;
+  return {
+    username: post.username,
+    posted_at: post.postedAt,
+    excerpt_ko_or_original: compactText(post.translationKo || post.text, 240),
+  };
+}
+
+function compactSocial(snapshot: DashboardSnapshot["social"]) {
+  const postsById = new Map(snapshot.posts.map((post) => [post.id, post]));
+  const sortedPosts = snapshot.posts.slice().sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+  const companySignals = snapshot.companies.slice().sort((a, b) => b.total - a.total || b.lastMentionAt.localeCompare(a.lastMentionAt)).slice(0, 12).map((company) => {
+    let evidence: { username: string; posted_at: string; sentiment: string; evidence: string | null } | null = null;
+    for (const post of sortedPosts) {
+      const mention = post.mentions.find((item) => item.ticker === company.ticker);
+      if (!mention) continue;
+      evidence = { username: post.username, posted_at: post.postedAt, sentiment: mention.sentiment, evidence: compactText(mention.evidence, 180) };
+      break;
+    }
+    return {
+      ticker: company.ticker,
+      name: company.name,
+      total: company.total,
+      positive: company.positive,
+      neutral: company.neutral,
+      negative: company.negative,
+      last_mention_at: company.lastMentionAt,
+      representative_evidence: evidence,
+    };
+  });
+  const topics = (snapshot.topics ?? []).slice().sort((a, b) => b.postCount - a.postCount).slice(0, 8).map((topic) => ({
+    title: topic.title,
+    summary: compactText(topic.summary, 260),
+    keywords: topic.keywords.slice(0, 6),
+    post_count: topic.postCount,
+    representative_post: representativePost(topic.postIds.map((id) => postsById.get(id)).find(Boolean)),
+  }));
+  const accountStats = snapshot.accounts.map((account) => {
+    const posts = sortedPosts.filter((post) => post.username.toLowerCase() === account.username.toLowerCase());
+    return { username: account.username, post_count: posts.length, analyzed_count: posts.filter((post) => post.analyzed).length, latest_post_at: posts[0]?.postedAt ?? null };
+  });
+  return {
+    analysis_model: snapshot.analysisModel ?? null,
+    topic_model: snapshot.topicModel ?? null,
+    period_days: snapshot.periodDays,
+    collected_post_count: snapshot.posts.length,
+    analyzed_post_count: snapshot.analyzedPostCount,
+    post_date_range: sortedPosts.length ? { newest: sortedPosts[0].postedAt, oldest: sortedPosts.at(-1)!.postedAt } : null,
+    mention_totals: snapshot.companies.reduce((sum, company) => ({ total: sum.total + company.total, positive: sum.positive + company.positive, neutral: sum.neutral + company.neutral, negative: sum.negative + company.negative }), { total: 0, positive: 0, neutral: 0, negative: 0 }),
+    account_stats: accountStats,
+    top_company_signals: companySignals,
+    top_topics: topics,
+    topic_summary_warning: compactText(snapshot.topicSummaryError, 240),
+    topic_summary_stale: snapshot.topicSummaryStale ?? false,
+  };
+}
+
 export function buildComprehensiveAnalysisInput(snapshot: DashboardSnapshot): string {
-  return JSON.stringify({
+  const marketSeries = snapshot.market ? [...snapshot.market.series, ...snapshot.market.countryEtfs] : [];
+  const compact = {
     dashboard_generated_at: snapshot.generatedAt,
+    input_format: "compact_summary_v2",
+    compaction: {
+      raw_chart_points_included: false,
+      macro_series_count: snapshot.macro.length,
+      market_series_count: marketSeries.length,
+      x_posts_total: snapshot.social.posts.length,
+      x_company_signals_included: Math.min(snapshot.social.companies.length, 12),
+      x_topics_included: Math.min(snapshot.social.topics?.length ?? 0, 8),
+    },
     data_freshness: {
       macro_updated_at: snapshot.macroUpdatedAt ?? null,
       market_updated_at: snapshot.marketUpdatedAt ?? null,
       x_collected_at: snapshot.socialCollectedAt ?? snapshot.socialUpdatedAt ?? null,
       x_analyzed_at: snapshot.socialAnalyzedAt ?? snapshot.socialUpdatedAt ?? null,
     },
-    macro: snapshot.macro,
-    market: snapshot.market ?? null,
-    x_monitoring: snapshot.social,
-  });
+    macro: snapshot.macro.map(compactMacroSeries),
+    market: snapshot.market ? {
+      provider: snapshot.market.provider,
+      peak_window_years: snapshot.market.peakWindowYears,
+      warnings: Array.from(new Set(snapshot.market.warnings.map((warning) => compactText(warning, 200)).filter((warning): warning is string => Boolean(warning)))).slice(0, 6),
+      series: marketSeries.map(compactMarketSeries),
+    } : null,
+    x_monitoring: compactSocial(snapshot.social),
+  };
+  return JSON.stringify(compact);
 }
 
 function estimateTextTokens(text: string): number {
