@@ -4,7 +4,7 @@ import type { MacroSeries } from "@/lib/types";
 
 const PRIORITY = new Map([["VIXCLS", 0], ["T10Y2Y", 1], ["DCOILWTICO", 2], ["WTI_FUTURES_FRONT", 3]]);
 
-export function MacroResults({ series }: { series: MacroSeries[] }) {
+export function MacroResults({ series, warnings = [] }: { series: MacroSeries[]; warnings?: string[] }) {
   const fearGreed = series.find((item) => item.id === "CNN_FEAR_GREED");
   const economicSeries = series
     .filter((item) => item.id !== "CNN_FEAR_GREED")
@@ -13,6 +13,7 @@ export function MacroResults({ series }: { series: MacroSeries[] }) {
   return (
     <section className="section-block macro-section">
       <div className="section-title"><div><p className="kicker">01 · MACRO INDICATORS</p><h2>시장 심리와 경제 지표</h2></div><p>상태는 지표별 규칙으로 계산한 참고값입니다.</p></div>
+      {warnings.length ? <aside className="market-warning" role="status"><strong>일부 지표는 이번 갱신에서 새로 받지 못했습니다.</strong>{warnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
       {fearGreed ? <FearGreedCard series={fearGreed} /> : null}
       <div className="macro-grid">{economicSeries.map((item) => <MacroCard series={item} key={item.id} />)}</div>
     </section>

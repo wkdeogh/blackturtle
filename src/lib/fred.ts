@@ -1,5 +1,6 @@
 import type { MacroSeries } from "@/lib/types";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { readJsonResponse } from "@/lib/http-json";
 
 interface FredDefinition {
   id: string;
@@ -50,7 +51,7 @@ async function fetchSeries(definition: FredDefinition, apiKey: string): Promise<
   const response = await fetchWithTimeout(`https://api.stlouisfed.org/fred/series/observations?${params}`, {
     cache: "no-store",
   }, 30_000, `FRED ${definition.id}`);
-  const body = (await response.json()) as FredResponse;
+  const body = await readJsonResponse<FredResponse>(response, `FRED ${definition.id}`);
   if (!response.ok || body.error_message) {
     throw new Error(`FRED ${definition.id}: ${body.error_message ?? response.statusText}`);
   }
@@ -77,6 +78,35 @@ async function fetchSeries(definition: FredDefinition, apiKey: string): Promise<
   };
 }
 
-export async function collectFredData(apiKey: string): Promise<MacroSeries[]> {
-  return Promise.all(SERIES.map((definition) => fetchSeries(definition, apiKey)));
+export interface FredCollectionResult {
+  series: MacroSeries[];
+  warnings: string[];
+  freshCount: number;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function collectFredData(apiKey: string, previous: MacroSeries[] = []): Promise<FredCollectionResult> {
+  const settled = await Promise.allSettled(SERIES.map((definition) => fetchSeries(definition, apiKey)));
+  const previousById = new Map(previous.map((series) => [series.id, series]));
+  const series: MacroSeries[] = [];
+  const warnings: string[] = [];
+  let freshCount = 0;
+
+  settled.forEach((result, index) => {
+    const definition = SERIES[index];
+    if (result.status === "fulfilled") {
+      series.push(result.value);
+      freshCount += 1;
+      return;
+    }
+
+    const stored = previousById.get(definition.id);
+    if (stored) series.push(stored);
+    warnings.push(`${definition.label} (${definition.id}): ${stored ? "새 데이터를 받지 못해 이전 값을 유지했습니다" : "수집하지 못했습니다"} · ${errorMessage(result.reason)}`);
+  });
+
+  return { series, warnings, freshCount };
 }

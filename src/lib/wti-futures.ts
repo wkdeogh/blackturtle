@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { readJsonResponse } from "@/lib/http-json";
 import type { MacroPoint, MacroSeries } from "@/lib/types";
 
 const MASSIVE_API_BASE = "https://api.massive.com/futures/v1";
@@ -48,7 +49,7 @@ export async function collectWtiFuturesData(apiKey: string): Promise<MacroSeries
   const contractResponse = await fetchWithTimeout(`${MASSIVE_API_BASE}/contracts?${contractParams}`, {
     cache: "no-store",
   }, 30_000, "WTI 선물 계약");
-  const contractBody = (await contractResponse.json()) as ContractsResponse;
+  const contractBody = await readJsonResponse<ContractsResponse>(contractResponse, "WTI 선물 계약");
   if (!contractResponse.ok || contractBody.status !== "OK") {
     throw new Error(`WTI 선물 계약: ${apiError(contractBody, contractResponse.statusText)}`);
   }
@@ -67,7 +68,7 @@ export async function collectWtiFuturesData(apiKey: string): Promise<MacroSeries
   const aggregateResponse = await fetchWithTimeout(`${MASSIVE_API_BASE}/aggs/${encodeURIComponent(contract.ticker)}?${aggregateParams}`, {
     cache: "no-store",
   }, 30_000, `WTI 선물 ${contract.ticker}`);
-  const aggregateBody = (await aggregateResponse.json()) as AggregatesResponse;
+  const aggregateBody = await readJsonResponse<AggregatesResponse>(aggregateResponse, `WTI 선물 ${contract.ticker}`);
   if (!aggregateResponse.ok || aggregateBody.status !== "OK") {
     throw new Error(`WTI 선물 ${contract.ticker}: ${apiError(aggregateBody, aggregateResponse.statusText)}`);
   }

@@ -124,6 +124,7 @@ export interface DashboardSnapshot {
   socialUpdatedAt?: string;
   socialCollectedAt?: string;
   socialAnalyzedAt?: string;
+  macroWarnings?: string[];
   macro: MacroSeries[];
   market?: MarketSnapshot;
   social: {

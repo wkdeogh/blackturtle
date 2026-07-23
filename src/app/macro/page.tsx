@@ -33,7 +33,7 @@ export default async function MacroPage() {
         {!snapshot?.payload.macro.length ? (
           <section className="empty-state"><div className="empty-orbit"><span>0</span></div><p className="kicker">NO MACRO DATA YET</p><h2>아직 저장된 매크로 데이터가 없습니다.</h2><p>{getSupabaseAdmin() ? "첫 매크로 갱신을 실행하면 이 자리에 저장합니다. X API는 호출하지 않습니다." : "Supabase 연결과 환경 변수를 완료한 뒤 첫 갱신을 실행하세요."}</p><RefreshButton source="macro" initialRun={latestRun} /></section>
         ) : (
-          <MacroResults series={snapshot.payload.macro} />
+          <MacroResults series={snapshot.payload.macro} warnings={snapshot.payload.macroWarnings} />
         )}
       </div>
       <SiteFooter />

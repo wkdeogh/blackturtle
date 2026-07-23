@@ -13,6 +13,7 @@ interface SocialWorkflowContext {
   generatedAt: string;
   macro: MacroSeries[];
   macroUpdatedAt?: string;
+  macroWarnings?: string[];
   market?: MarketSnapshot;
   marketUpdatedAt?: string;
   socialCollectedAt?: string;
@@ -45,6 +46,9 @@ async function collectMacroAndStoreDraft(runId: string) {
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
   return snapshot.generatedAt;
 }
+
+// 외부 지표 호출은 수집기 내부에서 항목별로 복구한다. HTML 오류나 호출 제한 때 전체 묶음을 자동 재호출하지 않는다.
+collectMacroAndStoreDraft.maxRetries = 0;
 
 async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
   "use step";
@@ -80,6 +84,7 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
     generatedAt,
     refreshSource: "market",
     macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    macroWarnings: previous?.payload.macroWarnings,
     marketUpdatedAt: generatedAt,
     socialUpdatedAt: previous?.payload.socialUpdatedAt,
     socialCollectedAt: previous?.payload.socialCollectedAt,
@@ -128,6 +133,7 @@ async function collectSocialPosts(): Promise<SocialWorkflowContext> {
     generatedAt: new Date().toISOString(),
     macro: previous?.payload.macro ?? [],
     macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    macroWarnings: previous?.payload.macroWarnings,
     market: previous?.payload.market,
     marketUpdatedAt: previous?.payload.marketUpdatedAt,
     socialAnalyzedAt: previous?.payload.socialAnalyzedAt ?? previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
@@ -159,6 +165,7 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
     generatedAt: new Date().toISOString(),
     macro: previous.payload.macro,
     macroUpdatedAt: previous.payload.macroUpdatedAt ?? previous.payload.generatedAt,
+    macroWarnings: previous.payload.macroWarnings,
     market: previous.payload.market,
     marketUpdatedAt: previous.payload.marketUpdatedAt,
     socialCollectedAt: previous.payload.socialCollectedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
@@ -216,6 +223,7 @@ async function storeSocialDraft(
     generatedAt: context.generatedAt,
     refreshSource: "social",
     macroUpdatedAt: context.macroUpdatedAt,
+    macroWarnings: context.macroWarnings,
     marketUpdatedAt: context.marketUpdatedAt,
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.socialCollectedAt ?? context.generatedAt,
@@ -245,6 +253,7 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
     generatedAt: context.generatedAt,
     refreshSource: "social",
     macroUpdatedAt: context.macroUpdatedAt,
+    macroWarnings: context.macroWarnings,
     marketUpdatedAt: context.marketUpdatedAt,
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.generatedAt,

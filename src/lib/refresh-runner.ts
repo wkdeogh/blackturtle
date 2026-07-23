@@ -34,6 +34,8 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
   const previous = await getLatestSnapshot();
   const now = new Date().toISOString();
   let macro = previous?.payload.macro ?? [];
+  let macroWarnings = previous?.payload.macroWarnings ?? [];
+  let macroUpdatedAt = previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt;
   const market = previous?.payload.market;
   let social = previous?.payload.social ?? {
     periodDays: 7,
@@ -44,7 +46,10 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
   };
 
   if (source === "macro") {
-    macro = await collectMacroData(process.env.FRED_API_KEY!, previous?.payload.macro, process.env.MASSIVE_API_KEY);
+    const result = await collectMacroData(process.env.FRED_API_KEY!, previous?.payload.macro, process.env.MASSIVE_API_KEY);
+    macro = result.series;
+    macroWarnings = result.warnings;
+    if (result.freshCount > 0) macroUpdatedAt = now;
   } else if (source === "social") {
     const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
     if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
@@ -66,11 +71,12 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
     version: 1,
     generatedAt: now,
     refreshSource: source,
-    macroUpdatedAt: source === "macro" ? now : previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
+    macroUpdatedAt,
     marketUpdatedAt: previous?.payload.marketUpdatedAt,
     socialUpdatedAt: source === "social" ? now : previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
     socialCollectedAt: source === "social" ? now : previous?.payload.socialCollectedAt,
     socialAnalyzedAt: source === "social" ? now : previous?.payload.socialAnalyzedAt,
+    macroWarnings,
     macro,
     market,
     social,
