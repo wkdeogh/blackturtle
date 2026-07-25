@@ -14,11 +14,13 @@ export default async function SocialPage() {
   let latestRun = null;
   let databaseError = "";
   let settings: Awaited<ReturnType<typeof getXMonitorSettings>> = { accounts: [], usernames: [], lookbackDays: 7, perAccountPostLimit: null, totalPostLimit: null, source: "none", accountStatusReady: false };
-  try {
-    [snapshot, settings, latestRun] = await Promise.all([getLatestSnapshot(), getXMonitorSettings(), getLatestRefreshRun()]);
-  } catch (error) {
-    databaseError = error instanceof Error ? error.message : "데이터베이스에 연결하지 못했습니다.";
-  }
+  const [snapshotResult, settingsResult, runResult] = await Promise.allSettled([getLatestSnapshot(), getXMonitorSettings(), getLatestRefreshRun()]);
+  if (snapshotResult.status === "fulfilled") snapshot = snapshotResult.value;
+  else databaseError = snapshotResult.reason instanceof Error ? snapshotResult.reason.message : "데이터베이스에 연결하지 못했습니다.";
+  if (settingsResult.status === "fulfilled") settings = settingsResult.value;
+  else if (!databaseError) databaseError = settingsResult.reason instanceof Error ? settingsResult.reason.message : "X 설정을 불러오지 못했습니다.";
+  if (runResult.status === "fulfilled") latestRun = runResult.value;
+  else if (!databaseError) databaseError = runResult.reason instanceof Error ? runResult.reason.message : "갱신 상태를 확인하지 못했습니다.";
   const missing = getMissingConfiguration("social");
   const collectedAt = snapshot?.payload.socialCollectedAt ?? snapshot?.payload.socialUpdatedAt ?? (snapshot?.payload.social.posts.length ? snapshot.payload.generatedAt : undefined);
   const analyzedAt = snapshot?.payload.socialAnalyzedAt ?? (snapshot?.payload.social.analysisModel ? snapshot.payload.socialUpdatedAt ?? snapshot.payload.generatedAt : undefined);

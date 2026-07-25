@@ -3,6 +3,22 @@ import type { ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, Dashb
 
 let adminClient: SupabaseClient | null | undefined;
 
+const SUPABASE_CLOCK_RETRY_DELAYS = [0, 500, 1_500, 3_000] as const;
+
+const retryingSupabaseFetch: typeof fetch = async (input, init) => {
+  let lastResponse: Response | null = null;
+  for (const delay of SUPABASE_CLOCK_RETRY_DELAYS) {
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    const requestInput = input instanceof Request ? input.clone() : input;
+    const response = await fetch(requestInput, init);
+    lastResponse = response;
+    if (response.ok) return response;
+    const body = await response.clone().text().catch(() => "");
+    if (!body.toLowerCase().includes("jwt issued at future")) return response;
+  }
+  return lastResponse!;
+};
+
 export function getSupabaseAdmin(): SupabaseClient | null {
   if (adminClient !== undefined) return adminClient;
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,6 +29,7 @@ export function getSupabaseAdmin(): SupabaseClient | null {
   }
   adminClient = createClient(url, secret, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: retryingSupabaseFetch },
   });
   return adminClient;
 }
@@ -50,7 +67,7 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
 function mapRefreshRun(row: Record<string, unknown>): RefreshRunStatus {
   return {
     id: row.id as string,
-    source: row.source === "macro" || row.source === "market" || row.source === "social" ? row.source : null,
+    source: row.source === "macro" || row.source === "market" || row.source === "social" || row.source === "all" ? row.source : null,
     status: row.status as RefreshRunStatus["status"],
     stage: (row.stage as RefreshRunStatus["stage"] | undefined) ?? null,
     workflowRunId: (row.workflow_run_id as string | null | undefined) ?? null,
@@ -89,7 +106,7 @@ export async function getLatestRefreshRun(): Promise<RefreshRunStatus | null> {
 }
 
 export function getSnapshotSource(snapshot: StoredSnapshot): RefreshSource | null {
-  if (snapshot.payload.refreshSource === "macro" || snapshot.payload.refreshSource === "market" || snapshot.payload.refreshSource === "social") {
+  if (snapshot.payload.refreshSource === "macro" || snapshot.payload.refreshSource === "market" || snapshot.payload.refreshSource === "social" || snapshot.payload.refreshSource === "all") {
     return snapshot.payload.refreshSource;
   }
 
@@ -322,11 +339,11 @@ export function getMissingConfiguration(source?: RefreshSource, socialMode: Soci
     ["SUPABASE_URL", process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL],
     ["SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY],
   ];
-  if (!source || source === "macro") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
-  if ((!source || source === "market") && !process.env.ALPHA_VANTAGE_API_KEY && !process.env.TWELVE_DATA_API_KEY) {
+  if (!source || source === "macro" || source === "all") required.push(["FRED_API_KEY", process.env.FRED_API_KEY]);
+  if ((!source || source === "market" || source === "all") && !process.env.ALPHA_VANTAGE_API_KEY && !process.env.TWELVE_DATA_API_KEY) {
     required.push(["ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY", undefined]);
   }
-  if (!source || source === "social") {
+  if (!source || source === "social" || source === "all") {
     if (socialMode !== "analyze_only") required.push(["X_BEARER_TOKEN", process.env.X_BEARER_TOKEN]);
     if (socialMode !== "collect_only") required.push(["OPENAI_API_KEY", process.env.OPENAI_API_KEY]);
   }

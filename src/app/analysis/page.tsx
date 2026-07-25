@@ -10,8 +10,11 @@ export default async function AnalysisPage() {
   let snapshot = null;
   let state: Awaited<ReturnType<typeof getComprehensiveAnalysisState>> = { migrationReady: false, latestRun: null, latestReport: null };
   let databaseError = "";
-  try { [snapshot, state] = await Promise.all([getLatestSnapshot(), getComprehensiveAnalysisState()]); }
-  catch (error) { databaseError = error instanceof Error ? error.message : "종합분석 데이터를 불러오지 못했습니다."; }
+  const [snapshotResult, stateResult] = await Promise.allSettled([getLatestSnapshot(), getComprehensiveAnalysisState()]);
+  if (snapshotResult.status === "fulfilled") snapshot = snapshotResult.value;
+  else databaseError = snapshotResult.reason instanceof Error ? snapshotResult.reason.message : "종합분석 데이터를 불러오지 못했습니다.";
+  if (stateResult.status === "fulfilled") state = stateResult.value;
+  else if (!databaseError) databaseError = stateResult.reason instanceof Error ? stateResult.reason.message : "종합분석 상태를 불러오지 못했습니다.";
   const hasData = Boolean(snapshot && (snapshot.payload.macro.length || snapshot.payload.market?.series.length || snapshot.payload.social.posts.length));
   const analysisModel = resolveOpenAIComprehensiveModel(process.env.OPENAI_COMPREHENSIVE_MODEL);
 

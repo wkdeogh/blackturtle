@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   let collectionSettings: ReturnType<typeof normalizeXCollectionSettings> = null;
   try {
     const body = (await request.json()) as { source?: unknown; socialMode?: unknown; collectionSettings?: unknown };
-    if (body.source !== "macro" && body.source !== "market" && body.source !== "social") throw new Error();
+    if (body.source !== "macro" && body.source !== "market" && body.source !== "social" && body.source !== "all") throw new Error();
     source = body.source;
     if (source === "social") {
       if (body.socialMode !== undefined && body.socialMode !== "collect_and_analyze" && body.socialMode !== "collect_only" && body.socialMode !== "analyze_only") throw new Error();
@@ -69,8 +69,9 @@ export async function POST(request: Request) {
     const busy = startError.message.includes("REFRESH_ALREADY_RUNNING");
     const migrationMissing = startError.message.includes("start_refresh_job") || startError.code === "PGRST202";
     const marketMigrationMissing = source === "market" && startError.message.includes("REFRESH_SOURCE_INVALID");
+    const fullMigrationMissing = source === "all" && startError.message.includes("REFRESH_SOURCE_INVALID");
     return NextResponse.json(
-      { error: marketMigrationMissing ? "Supabase에서 202607220010_market_refresh.sql을 먼저 실행하세요." : migrationMissing ? "Supabase에서 202607200007_durable_refresh.sql을 먼저 실행하세요." : busy ? "이미 데이터 갱신이 진행 중입니다." : `갱신 시작 실패: ${startError.message}` },
+      { error: fullMigrationMissing ? "Supabase에서 202607250012_full_refresh.sql을 먼저 실행하세요." : marketMigrationMissing ? "Supabase에서 202607220010_market_refresh.sql을 먼저 실행하세요." : migrationMissing ? "Supabase에서 202607200007_durable_refresh.sql을 먼저 실행하세요." : busy ? "이미 데이터 갱신이 진행 중입니다." : `갱신 시작 실패: ${startError.message}` },
       { status: busy ? 409 : 500 },
     );
   }

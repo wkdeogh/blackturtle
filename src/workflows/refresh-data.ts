@@ -11,6 +11,7 @@ import { sleep } from "workflow";
 
 interface SocialWorkflowContext {
   generatedAt: string;
+  refreshSource: "social" | "all";
   macro: MacroSeries[];
   macroUpdatedAt?: string;
   macroWarnings?: string[];
@@ -36,12 +37,13 @@ async function setRefreshStage(runId: string, stage: "collecting" | "saving") {
   if (error) throw new Error(`갱신 상태 저장 실패: ${error.message}`);
 }
 
-async function collectMacroAndStoreDraft(runId: string) {
+async function collectMacroAndStoreDraft(runId: string, refreshSource: "macro" | "all" = "macro") {
   "use step";
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
 
-  const snapshot = await collectRefreshSnapshot("macro");
+  const collected = await collectRefreshSnapshot("macro");
+  const snapshot: DashboardSnapshot = { ...collected, refreshSource };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
   return snapshot.generatedAt;
@@ -68,11 +70,26 @@ async function collectCountryMarketData(): Promise<MarketBatchResult> {
 collectPrimaryMarketData.maxRetries = 0;
 collectCountryMarketData.maxRetries = 0;
 
-async function storeMarketDraft(runId: string, primary: MarketBatchResult, countries: MarketBatchResult): Promise<string> {
+async function getRefreshDraft(runId: string): Promise<DashboardSnapshot | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const { data, error } = await supabase.from("refresh_runs").select("draft_payload").eq("id", runId).maybeSingle();
+  if (error) throw new Error(`갱신 임시 데이터 조회 실패: ${error.message}`);
+  return (data?.draft_payload as DashboardSnapshot | null | undefined) ?? null;
+}
+
+async function storeMarketDraft(
+  runId: string,
+  primary: MarketBatchResult,
+  countries: MarketBatchResult,
+  refreshSource: "market" | "all" = "market",
+): Promise<string> {
   "use step";
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
-  const previous = await getLatestSnapshot();
+  const stored = refreshSource === "all" ? await getRefreshDraft(runId) : null;
+  const previous = stored ? null : await getLatestSnapshot();
+  const base = stored ?? previous?.payload;
   const generatedAt = new Date().toISOString();
   const mergeSeries = (stored: MarketSnapshot["series"] | undefined, fresh: MarketSnapshot["series"], order: string[]) => {
     const byId = new Map((stored ?? []).map((series) => [series.id, series]));
@@ -82,22 +99,22 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
   const snapshot: DashboardSnapshot = {
     version: 1,
     generatedAt,
-    refreshSource: "market",
-    macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
-    macroWarnings: previous?.payload.macroWarnings,
+    refreshSource,
+    macroUpdatedAt: base?.macroUpdatedAt ?? base?.generatedAt,
+    macroWarnings: base?.macroWarnings,
     marketUpdatedAt: generatedAt,
-    socialUpdatedAt: previous?.payload.socialUpdatedAt,
-    socialCollectedAt: previous?.payload.socialCollectedAt,
-    socialAnalyzedAt: previous?.payload.socialAnalyzedAt,
-    macro: previous?.payload.macro ?? [],
+    socialUpdatedAt: base?.socialUpdatedAt,
+    socialCollectedAt: base?.socialCollectedAt,
+    socialAnalyzedAt: base?.socialAnalyzedAt,
+    macro: base?.macro ?? [],
     market: {
       provider: primary.provider,
       peakWindowYears: 3,
-      series: mergeSeries(previous?.payload.market?.series, primary.series.filter((series) => series.group === "market"), MARKET_PRIMARY_IDS),
-      countryEtfs: mergeSeries(previous?.payload.market?.countryEtfs, countries.series.filter((series) => series.group === "country"), MARKET_COUNTRY_IDS),
+      series: mergeSeries(base?.market?.series, primary.series.filter((series) => series.group === "market"), MARKET_PRIMARY_IDS),
+      countryEtfs: mergeSeries(base?.market?.countryEtfs, countries.series.filter((series) => series.group === "country"), MARKET_COUNTRY_IDS),
       warnings: [...primary.warnings, ...countries.warnings],
     },
-    social: previous?.payload.social ?? {
+    social: base?.social ?? {
       periodDays: 7,
       accounts: [],
       posts: [],
@@ -110,12 +127,14 @@ async function storeMarketDraft(runId: string, primary: MarketBatchResult, count
   return generatedAt;
 }
 
-async function collectSocialPosts(): Promise<SocialWorkflowContext> {
+async function collectSocialPosts(runId?: string): Promise<SocialWorkflowContext> {
   "use step";
   const missing = getMissingConfiguration("social", "collect_only");
   if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
 
-  const previous = await getLatestSnapshot();
+  const stored = runId ? await getRefreshDraft(runId) : null;
+  const previous = stored ? null : await getLatestSnapshot();
+  const base = stored ?? previous?.payload;
   const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
   if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
 
@@ -127,17 +146,18 @@ async function collectSocialPosts(): Promise<SocialWorkflowContext> {
     perAccountPostLimit,
     totalPostLimit,
     analysisModel,
-    previous?.payload.social,
+    base?.social,
   );
   return {
     generatedAt: new Date().toISOString(),
-    macro: previous?.payload.macro ?? [],
-    macroUpdatedAt: previous?.payload.macroUpdatedAt ?? previous?.payload.generatedAt,
-    macroWarnings: previous?.payload.macroWarnings,
-    market: previous?.payload.market,
-    marketUpdatedAt: previous?.payload.marketUpdatedAt,
-    socialAnalyzedAt: previous?.payload.socialAnalyzedAt ?? previous?.payload.socialUpdatedAt ?? previous?.payload.generatedAt,
-    previousSocial: previous?.payload.social,
+    refreshSource: runId ? "all" : "social",
+    macro: base?.macro ?? [],
+    macroUpdatedAt: base?.macroUpdatedAt ?? base?.generatedAt,
+    macroWarnings: base?.macroWarnings,
+    market: base?.market,
+    marketUpdatedAt: base?.marketUpdatedAt,
+    socialAnalyzedAt: base?.socialAnalyzedAt ?? base?.socialUpdatedAt ?? base?.generatedAt,
+    previousSocial: base?.social,
     prepared,
   };
 }
@@ -163,6 +183,7 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
   });
   return {
     generatedAt: new Date().toISOString(),
+    refreshSource: "social",
     macro: previous.payload.macro,
     macroUpdatedAt: previous.payload.macroUpdatedAt ?? previous.payload.generatedAt,
     macroWarnings: previous.payload.macroWarnings,
@@ -221,7 +242,7 @@ async function storeSocialDraft(
   const snapshot: DashboardSnapshot = {
     version: 1,
     generatedAt: context.generatedAt,
-    refreshSource: "social",
+    refreshSource: context.refreshSource,
     macroUpdatedAt: context.macroUpdatedAt,
     macroWarnings: context.macroWarnings,
     marketUpdatedAt: context.marketUpdatedAt,
@@ -251,7 +272,7 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
   const snapshot: DashboardSnapshot = {
     version: 1,
     generatedAt: context.generatedAt,
-    refreshSource: "social",
+    refreshSource: context.refreshSource,
     macroUpdatedAt: context.macroUpdatedAt,
     macroWarnings: context.macroWarnings,
     marketUpdatedAt: context.marketUpdatedAt,
@@ -289,6 +310,14 @@ async function recoverDraftOrFail(runId: string, message: string): Promise<boole
   return Boolean(data);
 }
 
+async function failRefreshRun(runId: string, message: string): Promise<void> {
+  "use step";
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const { error } = await supabase.rpc("fail_refresh", { p_run_id: runId, p_error: message });
+  if (error) throw new Error(`갱신 실패 상태 저장 오류: ${error.message}`);
+}
+
 export async function refreshDataWorkflow(
   runId: string,
   source: RefreshSource,
@@ -299,7 +328,53 @@ export async function refreshDataWorkflow(
   try {
     await setRefreshStage(runId, "collecting");
     let generatedAt: string;
-    if (source === "macro") {
+    if (source === "all") {
+      stage = "전체 갱신 · 매크로 지표 수집";
+      generatedAt = await collectMacroAndStoreDraft(runId, "all");
+      await setRefreshStage(runId, "collecting");
+
+      stage = "전체 갱신 · 주요 시장지수 수집";
+      const primary = await collectPrimaryMarketData();
+      await storeMarketDraft(runId, primary, {
+        provider: primary.provider,
+        series: [],
+        warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+      }, "all");
+      await setRefreshStage(runId, "collecting");
+      if (primary.provider === "Twelve Data") {
+        stage = "전체 갱신 · 무료 API 호출 한도 대기";
+        await sleep("61s");
+      } else {
+        stage = "전체 갱신 · 무료 API 호출 간격 대기";
+        await sleep("2s");
+      }
+      stage = "전체 갱신 · 국가 ETF 수집";
+      const countries = await collectCountryMarketData();
+      generatedAt = await storeMarketDraft(runId, primary, countries, "all");
+      await setRefreshStage(runId, "collecting");
+
+      stage = "전체 갱신 · X 게시물 수집";
+      const context = await collectSocialPosts(runId);
+      stage = "전체 갱신 · X 원문 우선 저장";
+      await storeSocialCollectionDraft(runId, context);
+      await setRefreshStage(runId, "collecting");
+      const posts = context.prepared.postsToAnalyze;
+      const batchCount = Math.ceil(posts.length / OPENAI_BATCH_SIZE);
+      const analysis: PostAnalysisResult[] = [];
+      for (let index = 0; index < posts.length; index += OPENAI_BATCH_SIZE) {
+        const batchNumber = Math.floor(index / OPENAI_BATCH_SIZE) + 1;
+        stage = `전체 갱신 · OpenAI 기업 분석 ${batchNumber}/${batchCount}`;
+        analysis.push(...await analyzeSocialBatch(
+          posts.slice(index, index + OPENAI_BATCH_SIZE),
+          context.prepared.analysisModel,
+        ));
+      }
+      stage = "전체 갱신 · 전체 주제 요약";
+      const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
+      stage = "전체 갱신 · 최종 결과 임시 저장";
+      await storeSocialDraft(runId, context, analysis, topicResult);
+      generatedAt = context.generatedAt;
+    } else if (source === "macro") {
       stage = "매크로 지표 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
     } else if (source === "market") {
@@ -358,6 +433,10 @@ export async function refreshDataWorkflow(
     return { ok: true, generatedAt };
   } catch (error) {
     const message = `${stage}: ${refreshErrorMessage(error)}`;
+    if (source === "all") {
+      await failRefreshRun(runId, message);
+      return { ok: false, error: message };
+    }
     const recovered = await recoverDraftOrFail(runId, message);
     return recovered ? { ok: true, recovered: true } : { ok: false, error: message };
   }

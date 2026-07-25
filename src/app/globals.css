@@ -119,6 +119,8 @@ a { color: inherit; }
 .secondary-link { display: inline-flex; min-height: 40px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 0 13px; color: var(--green-2); text-decoration: none; font-size: 10px; font-weight: 900; }
 .action-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .action-wrap.compact { align-items: stretch; }
+.refresh-button-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.refresh-button-stack .action-message { grid-column: 1 / -1; }
 .refresh-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .refresh-icon { display: inline-block; font-size: 19px; line-height: 1; }
 .refresh-icon.spinning { animation: spin .9s linear infinite; }
@@ -313,6 +315,7 @@ a { color: inherit; }
 .history-source { display: grid; place-items: center; width: 54px; height: 34px; border-radius: 9px; color: #bfe6d2; background: #1c3a2d; font-size: 9px; font-weight: 950; letter-spacing: .07em; }
 .history-source.social { color: #f1d6a7; background: #3c2d17; }
 .history-source.market { color: #c8dcf7; background: #25364d; }
+.history-source.all { color: #f1def9; background: #432b4d; }
 .history-source.unknown { color: #c3cbc6; background: #2b332f; }
 .history-source.large { width: 76px; height: 48px; border-radius: 12px; font-size: 11px; }
 .history-main { min-width: 0; }
@@ -571,6 +574,7 @@ html[data-theme="light"] .mention-chip.positive { color: #205f45; background: #e
 html[data-theme="light"] .history-source.social,
 html[data-theme="light"] .mention-chip.pending { color: #79551d; background: #f7ead1; }
 html[data-theme="light"] .history-source.market { color: #34577f; background: #e1ebf7; }
+html[data-theme="light"] .history-source.all { color: #74447f; background: #f1e4f4; }
 html[data-theme="light"] .history-source.unknown,
 html[data-theme="light"] .mention-chip.neutral,
 html[data-theme="light"] .mention-chip.none { color: #536059; background: #e9eeeb; }
@@ -621,6 +625,7 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .dashboard-hero { padding-bottom: 32px; }
   .dashboard-hero h1 { font-size: clamp(45px, 14vw, 66px); }
   .hero-copy { font-size: 13px; }
+  .refresh-button-stack { grid-template-columns: 1fr; }
   .monitor-settings summary > span:first-child { flex-direction: column; gap: 0; }
   .settings-body { padding: 16px; }
   .settings-save-row { align-items: stretch; flex-direction: column; }

@@ -11,11 +11,11 @@ export default async function MarketPage() {
   let snapshot = null;
   let latestRun = null;
   let databaseError = "";
-  try {
-    [snapshot, latestRun] = await Promise.all([getLatestSnapshot(), getLatestRefreshRun()]);
-  } catch (error) {
-    databaseError = error instanceof Error ? error.message : "데이터베이스에 연결하지 못했습니다.";
-  }
+  const [snapshotResult, runResult] = await Promise.allSettled([getLatestSnapshot(), getLatestRefreshRun()]);
+  if (snapshotResult.status === "fulfilled") snapshot = snapshotResult.value;
+  else databaseError = snapshotResult.reason instanceof Error ? snapshotResult.reason.message : "데이터베이스에 연결하지 못했습니다.";
+  if (runResult.status === "fulfilled") latestRun = runResult.value;
+  else if (!databaseError) databaseError = runResult.reason instanceof Error ? runResult.reason.message : "갱신 상태를 확인하지 못했습니다.";
   const missing = getMissingConfiguration("market");
   const market = snapshot?.payload.market;
   const updatedAt = snapshot?.payload.marketUpdatedAt ?? (market?.series.length ? snapshot?.payload.generatedAt : undefined);
