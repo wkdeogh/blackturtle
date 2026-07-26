@@ -20,7 +20,7 @@ export async function collectMacroData(apiKey: string, previous: MacroSeries[] =
     collectFredData(apiKey, previous),
     collectFearGreedData().then((series) => ({ series, error: null })).catch((error: unknown) => ({ series: null, error })),
     massiveApiKey
-      ? collectWtiFuturesData(massiveApiKey).then((series) => ({ series, error: null })).catch((error: unknown) => ({ series: null, error }))
+      ? collectWtiFuturesData(massiveApiKey, previousFutures).then((series) => ({ series, error: null })).catch((error: unknown) => ({ series: null, error }))
       : Promise.resolve({ series: null, error: null }),
   ]);
 

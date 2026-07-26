@@ -245,6 +245,28 @@ a { color: inherit; }
 .macro-signal.risk b { color: var(--red); }
 .macro-signal.neutral b { color: var(--muted); }
 .macro-line-chart { position: relative; min-width: 0; margin-top: 13px; padding-left: 34px; }
+.chart-interactive-plot { position: relative; min-width: 0; }
+.interactive-chart-svg { cursor: crosshair; touch-action: pan-y; user-select: none; -webkit-touch-callout: none; }
+.interactive-chart-svg:focus-visible { outline: 2px solid var(--green-2); outline-offset: 3px; border-radius: 5px; }
+.chart-scrub-line { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: .55; pointer-events: none; vector-effect: non-scaling-stroke; }
+.chart-scrub-line.horizontal { opacity: .22; }
+.chart-detail { position: absolute; top: 7px; z-index: 4; min-width: 126px; display: grid; gap: 3px; transform: translateX(-50%); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; color: var(--ink); background: var(--card); box-shadow: 0 8px 24px rgba(0,0,0,.22); pointer-events: none; animation: chart-detail-in .12s ease both; font-variant-numeric: tabular-nums; }
+.chart-detail.align-left { transform: translateX(0); }
+.chart-detail.align-right { transform: translateX(-100%); }
+.chart-detail time { color: var(--muted); font-size: 8px; font-weight: 900; }
+.chart-detail strong { font-size: 11px; white-space: nowrap; }
+.chart-detail strong small { color: var(--muted); font-size: 8px; font-weight: 700; }
+.chart-touch-hint { margin: 5px 0 0; color: var(--muted); font-size: 7px; text-align: right; }
+.country-detail { width: min(245px, calc(100vw - 54px)); gap: 6px; }
+.country-detail > span { display: grid; grid-template-columns: 7px auto 1fr; align-items: center; gap: 6px; }
+.country-detail > span i { width: 7px; height: 3px; border-radius: 999px; }
+.country-detail > span b { font-size: 8px; }
+.country-detail > span em { color: var(--muted); font-size: 8px; font-style: normal; text-align: right; white-space: nowrap; }
+@keyframes chart-detail-in { from { opacity: 0; transform: translateX(-50%) translateY(3px); } }
+.chart-detail.align-left { animation-name: chart-detail-in-left; }
+.chart-detail.align-right { animation-name: chart-detail-in-right; }
+@keyframes chart-detail-in-left { from { opacity: 0; transform: translateX(0) translateY(3px); } }
+@keyframes chart-detail-in-right { from { opacity: 0; transform: translateX(-100%) translateY(3px); } }
 .macro-line-chart svg { display: block; width: 100%; height: 118px; overflow: visible; border-bottom: 1px solid var(--chart-grid); }
 .macro-card.wide .macro-line-chart svg { height: 170px; }
 .macro-line-axis { position: absolute; top: -6px; bottom: 21px; left: 0; display: flex; flex-direction: column; justify-content: space-between; color: var(--muted); font-size: 7px; font-variant-numeric: tabular-nums; }

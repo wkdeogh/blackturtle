@@ -34,7 +34,7 @@ function MarketCard({ series, provider }: { series: MarketSeries; provider: Mark
         <div><span>최근 3년 고점 대비</span><b className={drawdown < -10 ? "down" : ""}>{drawdown.toFixed(2)}%</b></div>
       </div>
       <DeferredRender className="deferred-chart" minHeight={225}>
-        <MarketChart points={series.points} decimals={series.decimals} tone={chartTone(series)} />
+        <MarketChart points={series.points} decimals={series.decimals} currency={series.currency} tone={chartTone(series)} />
       </DeferredRender>
       <footer className="market-card-foot">
         <span>종가 고점 {formatPrice(series, series.peakValue)} · {series.peakDate}</span>

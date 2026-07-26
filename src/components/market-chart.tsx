@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useChartScrubber } from "@/components/use-chart-scrubber";
 import type { MarketPoint } from "@/lib/types";
 
 type ChartRange = "6M" | "1Y" | "3Y";
@@ -25,13 +26,20 @@ function axisValue(value: number, decimals: number): string {
   }).format(value);
 }
 
-export function MarketChart({ points, decimals, tone = "green" }: { points: MarketPoint[]; decimals: number; tone?: "green" | "amber" | "blue" }) {
+function tooltipAlignment(percent: number): string {
+  if (percent < 18) return "align-left";
+  if (percent > 82) return "align-right";
+  return "";
+}
+
+export function MarketChart({ points, decimals, currency, tone = "green" }: { points: MarketPoint[]; decimals: number; currency?: string; tone?: "green" | "amber" | "blue" }) {
   const [range, setRange] = useState<ChartRange>("1Y");
   const visible = useMemo(() => {
     const last = points.at(-1);
     if (!last) return [];
     return reducePoints(points.filter((point) => point.date >= cutoffDate(last.date, range)));
   }, [points, range]);
+  const scrubber = useChartScrubber(visible.length);
 
   if (visible.length < 2) return <div className="market-chart-empty">선택 구간의 데이터가 부족합니다.</div>;
 
@@ -55,25 +63,33 @@ export function MarketChart({ points, decimals, tone = "green" }: { points: Mark
   const first = visible[0];
   const middle = visible[Math.floor(visible.length / 2)];
   const last = visible.at(-1)!;
+  const selectedIndex = scrubber.activeIndex;
+  const selectedPoint = selectedIndex === null ? null : coordinates[selectedIndex];
+  const selectedPercent = selectedPoint ? (selectedPoint.x / width) * 100 : null;
 
   return (
     <div className={`market-chart ${tone}`}>
       <div className="market-range-tabs" aria-label="차트 기간">
         {(["6M", "1Y", "3Y"] as ChartRange[]).map((item) => (
-          <button className={range === item ? "active" : ""} type="button" onClick={() => setRange(item)} key={item}>{item}</button>
+          <button className={range === item ? "active" : ""} type="button" onClick={() => { scrubber.clear(); setRange(item); }} key={item}>{item}</button>
         ))}
       </div>
       <div className="market-chart-frame range-swap" key={range}>
         <div className="market-chart-axis" aria-hidden="true"><span>{axisValue(rawMax, decimals)}</span><span>{axisValue((rawMax + rawMin) / 2, decimals)}</span><span>{axisValue(rawMin, decimals)}</span></div>
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${range} 가격 추이. ${first.date} ${first.value}에서 ${last.date} ${last.value}`}>
-          <line className="market-grid-line" x1="0" x2={width} y1={plotTop} y2={plotTop} />
-          <line className="market-grid-line" x1="0" x2={width} y1={(plotTop + plotBottom) / 2} y2={(plotTop + plotBottom) / 2} />
-          <line className="market-grid-line" x1="0" x2={width} y1={plotBottom} y2={plotBottom} />
-          <path className="market-chart-area" d={area} />
-          <path className="market-chart-line" d={path} />
-        </svg>
+        <div className="chart-interactive-plot">
+          <svg className="interactive-chart-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" tabIndex={0} aria-label={`${range} 가격 추이. ${first.date} ${first.value}에서 ${last.date} ${last.value}. 길게 터치하거나 방향키로 날짜별 값을 확인할 수 있습니다.`} {...scrubber.handlers}>
+            <line className="market-grid-line" x1="0" x2={width} y1={plotTop} y2={plotTop} />
+            <line className="market-grid-line" x1="0" x2={width} y1={(plotTop + plotBottom) / 2} y2={(plotTop + plotBottom) / 2} />
+            <line className="market-grid-line" x1="0" x2={width} y1={plotBottom} y2={plotBottom} />
+            <path className="market-chart-area" d={area} />
+            <path className="market-chart-line" d={path} />
+            {selectedPoint ? <><line className="chart-scrub-line" x1={selectedPoint.x} x2={selectedPoint.x} y1={plotTop} y2={plotBottom} /><line className="chart-scrub-line horizontal" x1="0" x2={width} y1={selectedPoint.y} y2={selectedPoint.y} /></> : null}
+          </svg>
+          {selectedPoint && selectedPercent !== null ? <output className={`chart-detail ${tooltipAlignment(selectedPercent)}`} style={{ left: `${selectedPercent}%` }}><time dateTime={selectedPoint.date}>{selectedPoint.date}</time><strong>{new Intl.NumberFormat("ko-KR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(selectedPoint.value)}{currency ? <small> {currency}</small> : null}</strong></output> : null}
+        </div>
       </div>
       <div className="market-chart-dates"><time dateTime={first.date}>{first.date}</time><time dateTime={middle.date}>{middle.date}</time><time dateTime={last.date}>{last.date}</time></div>
+      <p className="chart-touch-hint">길게 터치하거나 마우스를 올려 날짜별 값 확인</p>
     </div>
   );
 }
