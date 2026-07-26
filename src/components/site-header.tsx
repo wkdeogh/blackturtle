@@ -15,15 +15,17 @@ const NAV_ITEMS = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const navigation = NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) || item.related?.some((path) => pathname.startsWith(path)) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>);
   return (
-    <header className="site-header">
-      <div className="page-shell header-inner">
-        <Link className="wordmark" href="/macro"><span className="turtle-mark" aria-hidden="true"><span /></span><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
-        <nav className="site-nav" aria-label="대시보드 메뉴">
-          {NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) || item.related?.some((path) => pathname.startsWith(path)) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>)}
-        </nav>
-        <div className="header-actions"><GlobalRefreshIndicator /><ThemeToggle /><span className="private-label">PRIVATE</span><LogoutButton /></div>
-      </div>
-    </header>
+    <>
+      <header className="site-header">
+        <div className="page-shell header-inner">
+          <Link className="wordmark" href="/macro"><span className="turtle-mark" aria-hidden="true"><span /></span><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
+          <nav className="site-nav desktop-site-nav" aria-label="대시보드 메뉴">{navigation}</nav>
+          <div className="header-actions"><GlobalRefreshIndicator /><ThemeToggle /><span className="private-label">PRIVATE</span><LogoutButton /></div>
+        </div>
+      </header>
+      <nav className="mobile-site-nav" aria-label="모바일 대시보드 메뉴">{navigation}</nav>
+    </>
   );
 }

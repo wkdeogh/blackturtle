@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useState } from "react";
+import { FormEvent, KeyboardEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { XMonitorAccountSetting } from "@/lib/supabase";
 import { MAX_ACTIVE_X_ACCOUNTS, MAX_SAVED_X_ACCOUNTS } from "@/lib/x-account-limits";
@@ -19,6 +19,10 @@ function normalize(value: string): string[] {
     .filter(Boolean);
 }
 
+function accountSignature(accounts: XMonitorAccountSetting[]): string {
+  return accounts.map((account) => `${account.username}:${account.enabled ? "1" : "0"}`).join("|");
+}
+
 export function XAccountSettings({
   initialAccounts,
   source,
@@ -26,10 +30,16 @@ export function XAccountSettings({
 }: XAccountSettingsProps) {
   const router = useRouter();
   const [accounts, setAccounts] = useState(initialAccounts);
+  const [savedAccounts, setSavedAccounts] = useState(initialAccounts);
+  const [databaseSaved, setDatabaseSaved] = useState(source === "database");
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const hasUnsavedChanges = useMemo(
+    () => !databaseSaved || accountSignature(accounts) !== accountSignature(savedAccounts),
+    [accounts, databaseSaved, savedAccounts],
+  );
 
   function addAccounts() {
     const candidates = [...new Set(normalize(input))];
@@ -96,14 +106,18 @@ export function XAccountSettings({
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "저장하지 못했습니다.");
+      setSavedAccounts(accounts);
+      setDatabaseSaved(true);
       setMessage("저장했습니다. 다음 데이터 갱신부터 적용됩니다.");
       showToast("X 모니터링 계정 설정을 저장했습니다.");
       router.refresh();
     } catch (caught) {
+      setAccounts(savedAccounts);
       setIsError(true);
       const errorMessage = caught instanceof Error ? caught.message : "저장하지 못했습니다.";
-      setMessage(errorMessage);
-      showToast(errorMessage, "error");
+      const rollbackMessage = `저장에 실패해 마지막 저장 상태로 되돌렸습니다. ${errorMessage}`;
+      setMessage(rollbackMessage);
+      showToast(rollbackMessage, "error");
     } finally {
       setSaving(false);
     }
@@ -118,18 +132,18 @@ export function XAccountSettings({
         <div className="account-setting-list">
           {accounts.map((account) => (
             <div className={account.enabled ? "account-setting-row" : "account-setting-row disabled"} key={account.username}>
-              <label><input type="checkbox" checked={account.enabled} onChange={(event) => setAccountEnabled(account.username, event.target.checked)} /><span><strong>@{account.username}</strong><small>{account.enabled ? "다음 수집에 포함" : "수집에서 제외"}</small></span></label>
-              <button type="button" onClick={() => setAccounts(accounts.filter((item) => item.username !== account.username))} aria-label={`@${account.username} 삭제`}>삭제</button>
+              <label><input type="checkbox" checked={account.enabled} disabled={saving} onChange={(event) => setAccountEnabled(account.username, event.target.checked)} /><span><strong>@{account.username}</strong><small>{account.enabled ? "다음 수집에 포함" : "수집에서 제외"}</small></span></label>
+              <button type="button" disabled={saving} onClick={() => setAccounts(accounts.filter((item) => item.username !== account.username))} aria-label={`@${account.username} 삭제`}>삭제</button>
             </div>
           ))}
           {!accounts.length ? <span className="no-accounts">등록된 계정이 없습니다.</span> : null}
         </div>
         <form className="account-add-form" onSubmit={handleSubmit}>
           <label htmlFor="x-username">X username</label>
-          <div><input id="x-username" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="예: unusual_whales" autoComplete="off" /><button type="submit" disabled={!input.trim()}>추가</button></div>
+          <div><input id="x-username" value={input} disabled={saving} onChange={(event) => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="예: unusual_whales" autoComplete="off" /><button type="submit" disabled={saving || !input.trim()}>추가</button></div>
           <small>@는 생략해도 됩니다. 쉼표로 여러 계정을 한 번에 입력할 수 있습니다.</small>
         </form>
-        <div className="settings-save-row"><span>{accounts.filter((account) => account.enabled).length}개 계정이 다음 수집 대상입니다.</span><button className="primary-button" type="button" onClick={save} disabled={saving || !statusReady}>{saving ? "저장 중…" : "계정 설정 저장"}</button></div>
+        <div className="settings-save-row"><span>{hasUnsavedChanges ? `저장되지 않은 변경 · ${accounts.filter((account) => account.enabled).length}개 활성` : `${accounts.filter((account) => account.enabled).length}개 계정이 다음 수집 대상입니다.`}</span><button className="primary-button" type="button" onClick={save} disabled={saving || !statusReady || !hasUnsavedChanges}>{saving ? "저장 중…" : hasUnsavedChanges ? "계정 설정 저장" : "저장됨"}</button></div>
         {message ? <p className={isError ? "settings-message error" : "settings-message"} role="status">{message}</p> : null}
       </div>
     </section>

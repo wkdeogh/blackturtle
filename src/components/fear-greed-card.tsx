@@ -1,4 +1,5 @@
 import { MacroLineChart } from "@/components/macro-line-chart";
+import { DeferredRender } from "@/components/deferred-render";
 import type { MacroSeries } from "@/lib/types";
 
 function fearGreedBand(value: number) {
@@ -32,7 +33,9 @@ export function FearGreedCard({ series }: { series: MacroSeries }) {
       </div>
       <div className="fear-greed-history">
         <div className="fear-history-head"><div><span>최근 약 1년</span><h3>공포·탐욕 추이</h3></div><time dateTime={series.observationDate}>{series.observationDate}</time></div>
-        <MacroLineChart series={series} fixedMin={0} fixedMax={100} tone="sentiment" />
+        <DeferredRender className="deferred-chart" minHeight={215}>
+          <MacroLineChart series={series} fixedMin={0} fixedMax={100} tone="sentiment" />
+        </DeferredRender>
         <p className="fear-source-note">0은 극단적 공포, 100은 극단적 탐욕입니다. CNN 지수를 장 마감 후 갱신되는 공개 데이터로 저장합니다.</p>
       </div>
     </article>

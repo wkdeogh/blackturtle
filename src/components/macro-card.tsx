@@ -2,6 +2,7 @@ import type { MacroSeries } from "@/lib/types";
 import { FRED_GUIDES } from "@/lib/fred";
 import { getMacroSignal } from "@/lib/macro-signal";
 import { MacroLineChart } from "@/components/macro-line-chart";
+import { DeferredRender } from "@/components/deferred-render";
 
 function formatValue(value: number, decimals: number): string {
   return new Intl.NumberFormat("ko-KR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
@@ -31,7 +32,9 @@ export function MacroCard({ series }: { series: MacroSeries }) {
       <div className={`macro-signal ${signal.level}`} aria-label={`규칙 기반 상태 ${signal.label}`}>
         <b>{signal.label}</b><span>{signal.detail}</span>
       </div>
-      <MacroLineChart series={series} tone={tone} />
+      <DeferredRender className="deferred-chart" minHeight={isWide ? 205 : 153}>
+        <MacroLineChart series={series} tone={tone} />
+      </DeferredRender>
       <div className="macro-meta">
         <span className={isUp ? "delta up" : "delta down"}>{series.change === null ? "—" : `${isUp ? "+" : ""}${formatValue(series.change, series.decimals)}`}</span>
         <time dateTime={series.observationDate}>{series.observationDate}</time>

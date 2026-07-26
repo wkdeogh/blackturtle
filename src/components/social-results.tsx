@@ -17,6 +17,8 @@ interface SocialResultsData {
   analyzedPostCount: number;
 }
 
+const POSTS_PER_PAGE = 20;
+
 function TopicCard({ topic, rank, maxCount, postsById }: { topic: TopicSummary; rank: number; maxCount: number; postsById: Map<string, SocialPost> }) {
   const accounts = [...new Set(topic.postIds.map((id) => postsById.get(id)?.username).filter((value): value is string => Boolean(value)))];
   return (
@@ -93,6 +95,7 @@ function PostCard({ post }: { post: SocialPost }) {
 export function SocialResults({ social, expanded = false }: { social: SocialResultsData; expanded?: boolean }) {
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [selectedPostAccount, setSelectedPostAccount] = useState<string | null>(null);
+  const [visiblePostLimit, setVisiblePostLimit] = useState(POSTS_PER_PAGE);
   const accountNames = useMemo(() => {
     const names = new Set(social.accounts.map((account) => account.username.toLowerCase()));
     for (const post of social.posts) names.add(post.username.toLowerCase());
@@ -118,6 +121,10 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
     () => activePostAccount === "all" ? social.posts : social.posts.filter((post) => post.username.toLowerCase() === activePostAccount),
     [activePostAccount, social.posts],
   );
+  const displayedPosts = useMemo(
+    () => visiblePosts.slice(0, visiblePostLimit),
+    [visiblePostLimit, visiblePosts],
+  );
   const postCountsByAccount = useMemo(() => {
     const counts = new Map<string, number>();
     for (const post of social.posts) {
@@ -128,14 +135,14 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
   }, [social.posts]);
   const postGroups = useMemo(() => {
     const groups = new Map<string, SocialPost[]>();
-    for (const post of visiblePosts) {
+    for (const post of displayedPosts) {
       const username = post.username.toLowerCase();
       const posts = groups.get(username) ?? [];
       posts.push(post);
       groups.set(username, posts);
     }
     return [...groups].map(([username, posts]) => ({ username, posts }));
-  }, [visiblePosts]);
+  }, [displayedPosts]);
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
   const topics = social.topics ?? [];
@@ -146,7 +153,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
       <section className="section-block topic-section">
         <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>전체 계정 · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>
         {social.topicSummaryStale ? <div className="topic-stale-notice">최근 X 수집분은 아직 반영되지 않았습니다. 저장 데이터 LLM 재분석을 실행하면 갱신됩니다.</div> : null}
-        {topics.length ? <div className="topic-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topicSummaryStale ? "저장 데이터 LLM 재분석을 실행하면 주요 주제를 생성합니다." : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "아직 주요 주제 분석 결과가 없습니다."}</div>}
+        {topics.length ? <div className="topic-grid stagger-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topicSummaryStale ? "저장 데이터 LLM 재분석을 실행하면 주요 주제를 생성합니다." : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "아직 주요 주제 분석 결과가 없습니다."}</div>}
         <p className="topic-footnote">게시물 하나가 여러 주제와 관련되면 각 주제에 함께 집계될 수 있습니다. 전체 수집 게시물의 공통 흐름을 요약하며 투자 조언이 아닙니다.</p>
       </section>
       <section className="result-filter" aria-label="X 결과 계정 필터">
@@ -170,12 +177,13 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{activePostAccount === "all" ? "전체 계정" : `@${activePostAccount}`} · {visiblePosts.length}개 · 최신순</p></div>
+        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{activePostAccount === "all" ? "전체 계정" : `@${activePostAccount}`} · {displayedPosts.length}/{visiblePosts.length}개 표시 · 최신순</p></div>
         {postAccountNames.length ? <div className="post-account-tabs" role="tablist" aria-label="게시물을 볼 X 계정 선택">
-          {postAccountNames.map((username) => <button type="button" role="tab" aria-selected={activePostAccount === username} className={activePostAccount === username ? "active" : ""} onClick={() => setSelectedPostAccount(username)} key={username}><span>@{username}</span><small>{postCountsByAccount.get(username) ?? 0}</small></button>)}
-          <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => setSelectedPostAccount("all")}><span>전체</span><small>{social.posts.length}</small></button>
+          {postAccountNames.map((username) => <button type="button" role="tab" aria-selected={activePostAccount === username} className={activePostAccount === username ? "active" : ""} onClick={() => { setSelectedPostAccount(username); setVisiblePostLimit(POSTS_PER_PAGE); }} key={username}><span>@{username}</span><small>{postCountsByAccount.get(username) ?? 0}</small></button>)}
+          <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => { setSelectedPostAccount("all"); setVisiblePostLimit(POSTS_PER_PAGE); }}><span>전체</span><small>{social.posts.length}</small></button>
         </div> : null}
-        <div className="account-post-groups filter-swap" key={activePostAccount}>{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 게시물</span></div><div className="post-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
+        <div className="account-post-groups filter-swap" key={activePostAccount}>{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 표시</span></div><div className="post-grid stagger-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
+        {displayedPosts.length < visiblePosts.length ? <div className="post-load-more"><button className="secondary-button" type="button" onClick={() => setVisiblePostLimit((current) => Math.min(current + POSTS_PER_PAGE, visiblePosts.length))}>게시물 {Math.min(POSTS_PER_PAGE, visiblePosts.length - displayedPosts.length)}개 더 보기</button><small>남은 {visiblePosts.length - displayedPosts.length}개</small></div> : null}
         {!visiblePosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>

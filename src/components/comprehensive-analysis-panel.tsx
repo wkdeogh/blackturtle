@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/format";
+import { DeferredRender } from "@/components/deferred-render";
 import { OPENAI_COMPREHENSIVE_MODELS, type OpenAIComprehensiveModel } from "@/lib/openai-config";
 import type { ComprehensiveAnalysisRunStatus, StoredComprehensiveAnalysis } from "@/lib/types";
 
@@ -67,21 +68,21 @@ function ComprehensiveReport({ stored, currentSnapshotId }: { stored: StoredComp
 
     <section className="analysis-section">
       <div className="section-title"><div><p className="kicker">01 · KEY INSIGHTS</p><h2>핵심 인사이트</h2></div><p>중요도순 · 관찰과 추론 분리</p></div>
-      <div className="analysis-insight-list">{report.keyInsights.slice(0, 3).map((insight, index) => <article key={`${index}-${insight.title}`}>
+      <div className="analysis-insight-list stagger-grid">{report.keyInsights.slice(0, 3).map((insight, index) => <article key={`${index}-${insight.title}`}>
         <div className="analysis-card-number">{String(index + 1).padStart(2, "0")}</div><div><div className="analysis-card-title"><h3>{shortText(insight.title, 60)}</h3><span>{insight.confidence} 확신</span></div><p>{shortText(insight.analysis, 220)}</p><details className="analysis-compact-details"><summary>근거 보기</summary><ReportList items={insight.evidence} /></details><aside><b>투자자 관점</b>{shortText(insight.investorImplication, 140)}</aside></div>
       </article>)}</div>
     </section>
 
-    <section className="analysis-section analysis-two-column">
+    <DeferredRender className="deferred-report-block" minHeight={520}><section className="analysis-section analysis-two-column">
       <div><div className="section-title"><div><p className="kicker">02 · OPPORTUNITIES</p><h2>기회 요인</h2></div></div><div className="analysis-stack">{report.opportunities.slice(0, 2).map((item) => <article className="analysis-simple-card analysis-positive" key={item.title}><h3>{shortText(item.title, 60)}</h3><p>{shortText(item.rationale, 180)}</p><details className="analysis-compact-details"><summary>성립 조건·반대 위험</summary><b>성립 조건</b><ReportList items={item.conditions} /><b>반대 위험</b><ReportList items={item.risks.slice(0, 1)} /></details><small>{item.relatedAssets.slice(0, 4).join(" · ")}</small></article>)}</div></div>
       <div><div className="section-title"><div><p className="kicker">03 · RISKS</p><h2>위험 요인</h2></div></div><div className="analysis-stack">{report.risks.slice(0, 2).map((item) => <article className="analysis-simple-card analysis-negative" key={item.title}><h3>{shortText(item.title, 60)}</h3><p>{shortText(item.transmission, 180)}</p><details className="analysis-compact-details"><summary>확인 신호</summary><ReportList items={item.watchSignals} /></details><small>{item.relatedAssets.slice(0, 4).join(" · ")}</small></article>)}</div></div>
-    </section>
+    </section></DeferredRender>
 
-    <section className="analysis-section"><div className="section-title"><div><p className="kicker">04 · SCENARIOS</p><h2>조건별 시나리오</h2></div><p>확률 예측이 아닌 확인 조건</p></div><div className="analysis-scenarios">{report.scenarios.slice(0, 3).map((scenario) => <article key={scenario.name}><span>{shortText(scenario.name, 20)}</span><ReportList items={scenario.conditions} /><p><b>예상 영향</b>{shortText(scenario.marketImpact, 110)}</p><p><b>대응 관점</b>{shortText(scenario.response, 90)}</p></article>)}</div></section>
+    <DeferredRender className="deferred-report-block" minHeight={330}><section className="analysis-section"><div className="section-title"><div><p className="kicker">04 · SCENARIOS</p><h2>조건별 시나리오</h2></div><p>확률 예측이 아닌 확인 조건</p></div><div className="analysis-scenarios stagger-grid">{report.scenarios.slice(0, 3).map((scenario) => <article key={scenario.name}><span>{shortText(scenario.name, 20)}</span><ReportList items={scenario.conditions} /><p><b>예상 영향</b>{shortText(scenario.marketImpact, 110)}</p><p><b>대응 관점</b>{shortText(scenario.response, 90)}</p></article>)}</div></section></DeferredRender>
 
-    <section className="analysis-section"><div className="section-title"><div><p className="kicker">05 · WATCHLIST</p><h2>다음 확인 항목</h2></div></div><div className="analysis-watchlist">{report.watchlist.slice(0, 4).map((item, index) => <article key={`${index}-${item.item}`}><span>{index + 1}</span><div><h3>{shortText(item.item, 60)}</h3><p>{shortText(item.currentContext, 100)}</p><small>{shortText(item.whyItMatters, 100)}</small><b>확인 기준 · {shortText(item.trigger, 100)}</b></div></article>)}</div></section>
+    <DeferredRender className="deferred-report-block" minHeight={390}><section className="analysis-section"><div className="section-title"><div><p className="kicker">05 · WATCHLIST</p><h2>다음 확인 항목</h2></div></div><div className="analysis-watchlist stagger-grid">{report.watchlist.slice(0, 4).map((item, index) => <article key={`${index}-${item.item}`}><span>{index + 1}</span><div><h3>{shortText(item.item, 60)}</h3><p>{shortText(item.currentContext, 100)}</p><small>{shortText(item.whyItMatters, 100)}</small><b>확인 기준 · {shortText(item.trigger, 100)}</b></div></article>)}</div></section></DeferredRender>
 
-    <section className="analysis-bottom-line"><p className="kicker">BOTTOM LINE</p><h2>{shortText(report.bottomLine, 320)}</h2>{report.dataCaveats.length ? <details><summary>데이터 한계 {Math.min(report.dataCaveats.length, 3)}건</summary><ReportList items={report.dataCaveats.slice(0, 3)} /></details> : null}<small>대시보드에 저장된 데이터만 사용한 AI 분석이며 투자 조언이 아닙니다.</small></section>
+    <DeferredRender className="deferred-report-block" minHeight={250}><section className="analysis-bottom-line"><p className="kicker">BOTTOM LINE</p><h2>{shortText(report.bottomLine, 320)}</h2>{report.dataCaveats.length ? <details><summary>데이터 한계 {Math.min(report.dataCaveats.length, 3)}건</summary><ReportList items={report.dataCaveats.slice(0, 3)} /></details> : null}<small>대시보드에 저장된 데이터만 사용한 AI 분석이며 투자 조언이 아닙니다.</small></section></DeferredRender>
   </article>;
 }
 

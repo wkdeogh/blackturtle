@@ -15,7 +15,7 @@ export function MacroResults({ series, warnings = [] }: { series: MacroSeries[];
       <div className="section-title"><div><p className="kicker">01 · MACRO INDICATORS</p><h2>시장 심리와 경제 지표</h2></div><p>상태는 지표별 규칙으로 계산한 참고값입니다.</p></div>
       {warnings.length ? <aside className="market-warning" role="status"><strong>일부 지표는 이번 갱신에서 새로 받지 못했습니다.</strong>{warnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
       {fearGreed ? <FearGreedCard series={fearGreed} /> : null}
-      <div className="macro-grid">{economicSeries.map((item) => <MacroCard series={item} key={item.id} />)}</div>
+      <div className="macro-grid stagger-grid">{economicSeries.map((item) => <MacroCard series={item} key={item.id} />)}</div>
     </section>
   );
 }
