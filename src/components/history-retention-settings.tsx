@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { showToast } from "@/lib/toast";
 
 export function HistoryRetentionSettings({
   initialLimit,
@@ -35,10 +36,13 @@ export function HistoryRetentionSettings({
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "보관 설정을 저장하지 못했습니다.");
       setMessage("저장했습니다. 다음 갱신 성공 시 이 개수에 맞춰 정리됩니다.");
+      showToast("히스토리 보관 개수를 저장했습니다.");
       router.refresh();
     } catch (caught) {
       setIsError(true);
-      setMessage(caught instanceof Error ? caught.message : "보관 설정을 저장하지 못했습니다.");
+      const errorMessage = caught instanceof Error ? caught.message : "보관 설정을 저장하지 못했습니다.";
+      setMessage(errorMessage);
+      showToast(errorMessage, "error");
     } finally {
       setSaving(false);
     }

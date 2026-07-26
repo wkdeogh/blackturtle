@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ToastViewport } from "@/components/toast-viewport";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("blackturtle-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}}catch(e){}` }} />
       </head>
-      <body>{children}</body>
+      <body>{children}<ToastViewport /></body>
     </html>
   );
 }

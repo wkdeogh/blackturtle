@@ -155,7 +155,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
       </section>
       <section className="section-block signal-section">
         <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
-        <div className="signal-grid">
+        <div className="signal-grid filter-swap" key={selectedAccount}>
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
             {companies.map((company, index) => <CompanyRow company={company} rank={index + 1} key={company.ticker} />)}
@@ -175,7 +175,7 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
           {postAccountNames.map((username) => <button type="button" role="tab" aria-selected={activePostAccount === username} className={activePostAccount === username ? "active" : ""} onClick={() => setSelectedPostAccount(username)} key={username}><span>@{username}</span><small>{postCountsByAccount.get(username) ?? 0}</small></button>)}
           <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => setSelectedPostAccount("all")}><span>전체</span><small>{social.posts.length}</small></button>
         </div> : null}
-        <div className="account-post-groups">{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 게시물</span></div><div className="post-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
+        <div className="account-post-groups filter-swap" key={activePostAccount}>{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 게시물</span></div><div className="post-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
         {!visiblePosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>

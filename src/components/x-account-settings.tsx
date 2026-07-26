@@ -4,6 +4,7 @@ import { FormEvent, KeyboardEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { XMonitorAccountSetting } from "@/lib/supabase";
 import { MAX_ACTIVE_X_ACCOUNTS, MAX_SAVED_X_ACCOUNTS } from "@/lib/x-account-limits";
+import { showToast } from "@/lib/toast";
 
 interface XAccountSettingsProps {
   initialAccounts: XMonitorAccountSetting[];
@@ -96,10 +97,13 @@ export function XAccountSettings({
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "저장하지 못했습니다.");
       setMessage("저장했습니다. 다음 데이터 갱신부터 적용됩니다.");
+      showToast("X 모니터링 계정 설정을 저장했습니다.");
       router.refresh();
     } catch (caught) {
       setIsError(true);
-      setMessage(caught instanceof Error ? caught.message : "저장하지 못했습니다.");
+      const errorMessage = caught instanceof Error ? caught.message : "저장하지 못했습니다.";
+      setMessage(errorMessage);
+      showToast(errorMessage, "error");
     } finally {
       setSaving(false);
     }

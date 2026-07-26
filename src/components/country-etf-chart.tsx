@@ -57,7 +57,7 @@ export function CountryEtfChart({ series }: { series: MarketSeries[] }) {
         <div className="market-range-tabs" aria-label="비교 차트 기간">{(["6M", "1Y", "3Y"] as ChartRange[]).map((item) => <button className={range === item ? "active" : ""} type="button" onClick={() => setRange(item)} key={item}>{item}</button>)}</div>
         <div className="country-legend">{normalized.map(({ item, returnPercent }, index) => <span key={item.id}><i style={{ backgroundColor: COLORS[index % COLORS.length] }} />{item.label} <b className={(returnPercent ?? 0) >= 0 ? "up" : "down"}>{returnPercent === null ? "-" : `${returnPercent >= 0 ? "+" : ""}${returnPercent.toFixed(1)}%`}</b></span>)}</div>
       </div>
-      <div className="country-chart-frame">
+      <div className="country-chart-frame range-swap" key={range}>
         <div className="market-chart-axis" aria-hidden="true"><span>{rawMax.toFixed(0)}</span><span>{((rawMax + rawMin) / 2).toFixed(0)}</span><span>{rawMin.toFixed(0)}</span></div>
         <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${range} 국가 ETF 가격 비교. 각 시작일을 100으로 환산`}>
           <line className="market-grid-line" x1="0" x2={width} y1={plotTop} y2={plotTop} />

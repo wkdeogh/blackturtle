@@ -10,9 +10,9 @@ export function RefreshButton({ source, initialRun, compact = false }: { source:
 
   return (
     <div className={compact ? "action-wrap compact" : "action-wrap"}>
-      <button className="primary-button refresh-button" type="button" onClick={() => void refresh.startRefresh()} disabled={refresh.busy}>
-        <span className={refresh.busy ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
-        {refresh.starting ? "요청 중" : refresh.running ? (refresh.ownRun ? "갱신 중" : "다른 갱신 중") : "데이터 갱신"}
+      <button className={refresh.completed ? "primary-button refresh-button completed" : "primary-button refresh-button"} type="button" onClick={() => void refresh.startRefresh()} disabled={refresh.busy || refresh.completed}>
+        <span className={refresh.busy ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">{refresh.completed ? "✓" : "↻"}</span>
+        {refresh.completed ? "완료" : refresh.starting ? "요청 중" : refresh.running ? (refresh.ownRun ? "갱신 중" : "다른 갱신 중") : "데이터 갱신"}
       </button>
       {refresh.message ? <p className={refresh.isError ? "action-message error" : "action-message"} role="status">{refresh.message}</p> : null}
     </div>
@@ -27,9 +27,9 @@ export function FullRefreshButton({ initialRun }: { initialRun: RefreshRunStatus
   }
   return (
     <div className="action-wrap compact full-refresh-wrap">
-      <button className="combined-button refresh-button" type="button" onClick={startFullRefresh} disabled={refresh.busy}>
-        <span className={refresh.busy && refresh.ownRun ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">↻</span>
-        {refresh.starting ? "요청 중" : refresh.running ? (refresh.ownRun ? "전체 갱신 중" : "다른 갱신 중") : "전체 갱신"}
+      <button className={refresh.completed ? "combined-button refresh-button completed" : "combined-button refresh-button"} type="button" onClick={startFullRefresh} disabled={refresh.busy || refresh.completed}>
+        <span className={refresh.busy && refresh.ownRun ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">{refresh.completed ? "✓" : "↻"}</span>
+        {refresh.completed ? "전체 갱신 완료" : refresh.starting ? "요청 중" : refresh.running ? (refresh.ownRun ? "전체 갱신 중" : "다른 갱신 중") : "전체 갱신"}
       </button>
       {refresh.message ? <p className={refresh.isError ? "action-message error" : "action-message"} role="status">{refresh.message}</p> : null}
     </div>

@@ -63,7 +63,7 @@ export function MarketChart({ points, decimals, tone = "green" }: { points: Mark
           <button className={range === item ? "active" : ""} type="button" onClick={() => setRange(item)} key={item}>{item}</button>
         ))}
       </div>
-      <div className="market-chart-frame">
+      <div className="market-chart-frame range-swap" key={range}>
         <div className="market-chart-axis" aria-hidden="true"><span>{axisValue(rawMax, decimals)}</span><span>{axisValue((rawMax + rawMin) / 2, decimals)}</span><span>{axisValue(rawMin, decimals)}</span></div>
         <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${range} 가격 추이. ${first.date} ${first.value}에서 ${last.date} ${last.value}`}>
           <line className="market-grid-line" x1="0" x2={width} y1={plotTop} y2={plotTop} />

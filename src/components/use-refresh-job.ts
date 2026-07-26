@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RefreshRunStatus, RefreshSource } from "@/lib/types";
+import { showToast } from "@/lib/toast";
 
 interface RefreshResponse {
   run?: RefreshRunStatus | null;
@@ -19,7 +20,9 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
   const [starting, setStarting] = useState(false);
   const [localError, setLocalError] = useState("");
   const [completedThisSession, setCompletedThisSession] = useState(false);
+  const [recentlyCompleted, setRecentlyCompleted] = useState(false);
   const runRef = useRef(initialRun);
+  const completionTimer = useRef<number | null>(null);
 
   const applyRun = useCallback((next: RefreshRunStatus | null) => {
     const previous = runRef.current;
@@ -27,6 +30,14 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     setRun(next);
     if (previous?.status === "running" && next?.id === previous.id && next.status !== "running") {
       setCompletedThisSession(next.status === "success");
+      if (next.status === "success") {
+        setRecentlyCompleted(true);
+        showToast(`${sourceLabel(next.source)} 갱신을 완료했습니다.`);
+        if (completionTimer.current) window.clearTimeout(completionTimer.current);
+        completionTimer.current = window.setTimeout(() => setRecentlyCompleted(false), 1_600);
+      } else {
+        showToast(next.error ?? `${sourceLabel(next.source)} 갱신에 실패했습니다.`, "error");
+      }
       router.refresh();
     }
   }, [router]);
@@ -49,6 +60,10 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     return () => window.clearInterval(timer);
   }, [checkStatus, run?.status]);
 
+  useEffect(() => () => {
+    if (completionTimer.current) window.clearTimeout(completionTimer.current);
+  }, []);
+
   async function startRefresh(extraBody?: Record<string, unknown>): Promise<boolean> {
     if (starting || runRef.current?.status === "running") return false;
     setStarting(true);
@@ -69,7 +84,9 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
       applyRun(body.run ?? null);
       return true;
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : "갱신 작업을 시작하지 못했습니다.");
+      const message = error instanceof Error ? error.message : "갱신 작업을 시작하지 못했습니다.";
+      setLocalError(message);
+      showToast(message, "error");
       return false;
     } finally {
       setStarting(false);
@@ -109,6 +126,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     ownRun,
     starting,
     busy: starting || running,
+    completed: recentlyCompleted,
     message,
     isError,
     startRefresh,
