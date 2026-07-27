@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TurtleLogo } from "@/components/turtle-logo";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
@@ -7,7 +8,7 @@ export default function LoginPage() {
     <main className="login-page">
       <div className="login-theme-toggle"><ThemeToggle /></div>
       <section className="login-panel">
-        <div className="turtle-mark large" aria-hidden="true"><span /></div>
+        <TurtleLogo large priority />
         <p className="kicker">PRIVATE INVESTMENT DESK</p>
         <h1>Black Turtle</h1>
         <p className="login-copy">저장된 시장 데이터와 투자 시그널을 확인하려면 비밀번호를 입력하세요.</p>

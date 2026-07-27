@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/dashboard-actions";
 import { GlobalRefreshIndicator } from "@/components/global-refresh-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TurtleLogo } from "@/components/turtle-logo";
 
 const NAV_ITEMS = [
   { href: "/macro", label: "매크로" },
@@ -20,7 +21,7 @@ export function SiteHeader() {
     <>
       <header className="site-header">
         <div className="page-shell header-inner">
-          <Link className="wordmark" href="/macro"><span className="turtle-mark" aria-hidden="true"><span /></span><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
+          <Link className="wordmark" href="/macro" aria-label="Black Turtle 홈"><TurtleLogo priority /><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
           <nav className="site-nav desktop-site-nav" aria-label="대시보드 메뉴">{navigation}</nav>
           <div className="header-actions"><GlobalRefreshIndicator /><ThemeToggle /><span className="private-label">PRIVATE</span><LogoutButton /></div>
         </div>
