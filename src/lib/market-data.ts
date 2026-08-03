@@ -39,6 +39,7 @@ export const MARKET_DEFINITIONS: readonly MarketDefinition[] = [
   { id: "gold", label: "금", symbol: "GLD", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "금 현물 추종 ETF" },
   { id: "bitcoin", label: "비트코인", symbol: "BTC/USD", group: "market", instrumentType: "crypto", currency: "USD", decimals: 0 },
   { id: "usdkrw", label: "원·달러 환율", symbol: "USD/KRW", group: "market", instrumentType: "forex", currency: "KRW", decimals: 2 },
+  { id: "dollar_index", label: "달러인덱스", symbol: "UUP", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "미 달러 강세 ETF · ICE DXY 대용" },
   { id: "kospi", label: "코스피", symbol: "EWY", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI 한국 ETF 대용" },
   { id: "sox", label: "필라델피아 반도체", symbol: "SOXX", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "미국 반도체 ETF 대용" },
   { id: "brazil", label: "브라질", symbol: "EWZ", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI Brazil ETF" },
@@ -47,8 +48,8 @@ export const MARKET_DEFINITIONS: readonly MarketDefinition[] = [
   { id: "japan", label: "일본", symbol: "EWJ", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI Japan ETF" },
 ];
 
-export const MARKET_PRIMARY_IDS = MARKET_DEFINITIONS.slice(0, 7).map((definition) => definition.id);
-export const MARKET_COUNTRY_IDS = MARKET_DEFINITIONS.slice(7).map((definition) => definition.id);
+export const MARKET_PRIMARY_IDS = MARKET_DEFINITIONS.filter((definition) => definition.group === "market").map((definition) => definition.id);
+export const MARKET_COUNTRY_IDS = MARKET_DEFINITIONS.filter((definition) => definition.group === "country").map((definition) => definition.id);
 
 function readSeriesPayload(payload: unknown, definition: MarketDefinition, batchSize: number): TwelveDataSeriesResponse | null {
   if (!payload || typeof payload !== "object") return null;

@@ -16,7 +16,7 @@ function instrumentLabel(series: MarketSeries): string {
 
 function chartTone(series: MarketSeries): "green" | "amber" | "blue" {
   if (series.id === "gold") return "amber";
-  if (series.id === "bitcoin" || series.id === "usdkrw") return "blue";
+  if (series.id === "bitcoin" || series.id === "usdkrw" || series.id === "dollar_index") return "blue";
   return "green";
 }
 
