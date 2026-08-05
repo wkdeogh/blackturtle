@@ -22,7 +22,7 @@ export function XCollectionPanel({
   initialRun,
 }: XCollectionPanelProps) {
   const refresh = useRefreshJob("social", initialRun);
-  const [lookbackDays, setLookbackDays] = useState(initialLookbackDays);
+  const [lookbackDays, setLookbackDays] = useState(initialLookbackDays.toString());
   const [perAccountPostLimit, setPerAccountPostLimit] = useState(initialPerAccountPostLimit?.toString() ?? "");
   const [totalPostLimit, setTotalPostLimit] = useState(initialTotalPostLimit?.toString() ?? "");
   const [action, setAction] = useState<"collect" | "analyze" | "combined" | null>(null);
@@ -39,7 +39,7 @@ export function XCollectionPanel({
       await refresh.startRefresh({
         socialMode: "collect_only",
         collectionSettings: {
-          lookbackDays,
+          lookbackDays: Number(lookbackDays),
           perAccountPostLimit: perAccountPostLimit ? Number(perAccountPostLimit) : null,
           totalPostLimit: totalPostLimit ? Number(totalPostLimit) : null,
         },
@@ -76,7 +76,7 @@ export function XCollectionPanel({
       await refresh.startRefresh({
         socialMode: "collect_and_analyze",
         collectionSettings: {
-          lookbackDays,
+          lookbackDays: Number(lookbackDays),
           perAccountPostLimit: perAccountPostLimit ? Number(perAccountPostLimit) : null,
           totalPostLimit: totalPostLimit ? Number(totalPostLimit) : null,
         },
@@ -98,9 +98,8 @@ export function XCollectionPanel({
       <div className="collection-fields">
         <div className="lookback-field">
           <label htmlFor="x-lookback-days">수집 기간</label>
-          <select id="x-lookback-days" value={lookbackDays} onChange={(event) => setLookbackDays(Number(event.target.value))}>
-            {[1, 3, 7, 14, 30].map((days) => <option value={days} key={days}>최근 {days}일</option>)}
-          </select>
+          <input id="x-lookback-days" type="number" inputMode="numeric" min="1" max="30" step="1" value={lookbackDays} onChange={(event) => setLookbackDays(event.target.value)} />
+          <small>1~30일 사이에서 원하는 날짜 수를 입력하세요.</small>
         </div>
         <div className="post-limit-grid">
           <div>

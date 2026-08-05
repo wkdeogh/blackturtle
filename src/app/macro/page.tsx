@@ -1,5 +1,5 @@
 import { MacroResults } from "@/components/macro-results";
-import { FullRefreshButton, RefreshButton } from "@/components/dashboard-actions";
+import { RefreshButton } from "@/components/dashboard-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { formatDateTime } from "@/lib/format";
@@ -25,7 +25,7 @@ export default async function MacroPage() {
       <div className="page-shell dashboard-content">
         <section className="dashboard-hero compact-hero">
           <div><p className="kicker">MACRO DATA</p><h1>매크로</h1><p className="hero-copy">저장된 마지막 시장 심리·경제 지표입니다. 이 페이지를 여는 것만으로는 외부 데이터를 호출하지 않습니다.</p></div>
-          <div className="refresh-panel"><span>LAST MACRO UPDATE</span><strong>{updatedAt ? formatDateTime(updatedAt) : "아직 없음"}</strong><div className="refresh-button-stack"><RefreshButton source="macro" initialRun={latestRun} compact /><FullRefreshButton initialRun={latestRun} /></div></div>
+          <div className="refresh-panel"><span>LAST MACRO UPDATE</span><strong>{updatedAt ? formatDateTime(updatedAt) : "아직 없음"}</strong><RefreshButton source="macro" initialRun={latestRun} compact /></div>
         </section>
 
         {missing.length || databaseError ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>{databaseError ? "데이터베이스 확인이 필요합니다" : "매크로 설정이 남아 있습니다"}</strong></div><p>{databaseError || `미설정 환경 변수: ${missing.join(", ")}`}</p><p className="setup-help">저장소의 <code>SETUP.html</code>과 <code>.env.example</code>을 확인하세요.</p></aside> : null}

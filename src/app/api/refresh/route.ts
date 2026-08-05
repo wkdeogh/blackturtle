@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getRun, start } from "workflow/api";
 import { isAuthenticated } from "@/lib/auth";
+import { isOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
-import { getLatestRefreshRun, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
-import type { RefreshSource, SocialRefreshMode } from "@/lib/types";
+import { getComprehensiveAnalysisState, getLatestRefreshRun, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
+import type { RefreshSource, RefreshTarget, SocialRefreshMode } from "@/lib/types";
 import { normalizeXCollectionSettings } from "@/lib/x-collection-settings";
 import { refreshDataWorkflow } from "@/workflows/refresh-data";
 
@@ -40,27 +41,56 @@ export async function POST(request: Request) {
   let source: RefreshSource;
   let socialMode: SocialRefreshMode = "collect_and_analyze";
   let collectionSettings: ReturnType<typeof normalizeXCollectionSettings> = null;
+  let targets: RefreshTarget[] | undefined;
+  let runComprehensiveAnalysis = false;
+  let comprehensiveModel = "";
   try {
-    const body = (await request.json()) as { source?: unknown; socialMode?: unknown; collectionSettings?: unknown };
+    const body = (await request.json()) as { source?: unknown; socialMode?: unknown; collectionSettings?: unknown; targets?: unknown; runComprehensiveAnalysis?: unknown; comprehensiveModel?: unknown };
     if (body.source !== "macro" && body.source !== "market" && body.source !== "social" && body.source !== "all") throw new Error();
     source = body.source;
-    if (source === "social") {
+    if (source === "social" || source === "all") {
       if (body.socialMode !== undefined && body.socialMode !== "collect_and_analyze" && body.socialMode !== "collect_only" && body.socialMode !== "analyze_only") throw new Error();
       socialMode = (body.socialMode as SocialRefreshMode | undefined) ?? "collect_and_analyze";
     }
-    if (source === "social" && socialMode !== "analyze_only" && body.collectionSettings !== undefined) {
+    if (source === "all" && body.targets !== undefined) {
+      if (!Array.isArray(body.targets) || !body.targets.length || body.targets.some((target) => target !== "macro" && target !== "market" && target !== "social")) throw new Error();
+      targets = [...new Set(body.targets as RefreshTarget[])];
+    }
+    const includesSocial = source === "social" || (source === "all" && (targets?.includes("social") ?? true));
+    if (includesSocial && socialMode !== "analyze_only" && body.collectionSettings !== undefined) {
       collectionSettings = normalizeXCollectionSettings(body.collectionSettings);
       if (!collectionSettings) {
         return NextResponse.json({ error: "수집 기간과 게시물 상한을 확인하세요. 상한은 비우거나 1 이상의 정수를 입력해야 합니다." }, { status: 400 });
       }
     }
+    if (source === "all" && body.runComprehensiveAnalysis !== undefined) {
+      if (typeof body.runComprehensiveAnalysis !== "boolean") throw new Error();
+      runComprehensiveAnalysis = body.runComprehensiveAnalysis;
+    }
+    if (runComprehensiveAnalysis) {
+      if (!isOpenAIComprehensiveModel(body.comprehensiveModel)) throw new Error();
+      comprehensiveModel = body.comprehensiveModel;
+    }
   } catch {
     return NextResponse.json({ error: "갱신 대상이 올바르지 않습니다." }, { status: 400 });
   }
 
-  const missing = getMissingConfiguration(source, socialMode);
+  const missing = source === "all" && targets
+    ? [...new Set(targets.flatMap((target) => getMissingConfiguration(target, socialMode)))]
+    : getMissingConfiguration(source, socialMode);
+  if (runComprehensiveAnalysis && !process.env.OPENAI_API_KEY && !missing.includes("OPENAI_API_KEY")) missing.push("OPENAI_API_KEY");
   if (missing.length) {
     return NextResponse.json({ error: `설정되지 않은 환경 변수: ${missing.join(", ")}` }, { status: 503 });
+  }
+
+  if (runComprehensiveAnalysis) {
+    const analysisState = await getComprehensiveAnalysisState();
+    if (!analysisState.migrationReady) {
+      return NextResponse.json({ error: "Supabase에서 202607220011_comprehensive_analysis.sql을 먼저 실행하세요." }, { status: 503 });
+    }
+    if (analysisState.latestRun?.status === "running") {
+      return NextResponse.json({ error: "이미 종합분석이 진행 중입니다." }, { status: 409 });
+    }
   }
 
   const supabase = getSupabaseAdmin()!;
@@ -86,7 +116,7 @@ export async function POST(request: Request) {
       if (error) throw new Error(`수집 설정 저장 실패: ${error.message}`);
     }
 
-    const workflowRun = await start(refreshDataWorkflow, [runId as string, source, socialMode]);
+    const workflowRun = await start(refreshDataWorkflow, [runId as string, source, socialMode, targets, runComprehensiveAnalysis ? comprehensiveModel : undefined]);
     await supabase.rpc("attach_refresh_workflow", { p_run_id: runId, p_workflow_run_id: workflowRun.runId });
     const run = await getLatestRefreshRun();
     return NextResponse.json({ ok: true, run }, { status: 202 });

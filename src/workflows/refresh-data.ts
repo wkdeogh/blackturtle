@@ -5,8 +5,9 @@ import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
 import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
-import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, SocialRefreshMode, TopicSummary } from "@/lib/types";
+import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, RefreshTarget, SocialRefreshMode, TopicSummary } from "@/lib/types";
 import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
+import { queueLatestComprehensiveAnalysis } from "@/workflows/comprehensive-analysis";
 import { sleep } from "workflow";
 
 interface SocialWorkflowContext {
@@ -322,58 +323,67 @@ export async function refreshDataWorkflow(
   runId: string,
   source: RefreshSource,
   socialMode: SocialRefreshMode = "collect_and_analyze",
+  selectedTargets?: RefreshTarget[],
+  comprehensiveModel?: string,
 ) {
   "use workflow";
   let stage = "갱신 준비";
   try {
     await setRefreshStage(runId, "collecting");
-    let generatedAt: string;
+    let generatedAt = new Date().toISOString();
     if (source === "all") {
-      stage = "전체 갱신 · 매크로 지표 수집";
-      generatedAt = await collectMacroAndStoreDraft(runId, "all");
-      await setRefreshStage(runId, "collecting");
-
-      stage = "전체 갱신 · 주요 시장지수 수집";
-      const primary = await collectPrimaryMarketData();
-      await storeMarketDraft(runId, primary, {
-        provider: primary.provider,
-        series: [],
-        warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
-      }, "all");
-      await setRefreshStage(runId, "collecting");
-      if (primary.provider === "Twelve Data") {
-        stage = "전체 갱신 · 무료 API 호출 한도 대기";
-        await sleep("61s");
-      } else {
-        stage = "전체 갱신 · 무료 API 호출 간격 대기";
-        await sleep("2s");
+      const targets = new Set<RefreshTarget>(selectedTargets?.length ? selectedTargets : ["macro", "market", "social"]);
+      if (targets.has("macro")) {
+        stage = "선택 갱신 · 매크로 지표 수집";
+        generatedAt = await collectMacroAndStoreDraft(runId, "all");
+        await setRefreshStage(runId, "collecting");
       }
-      stage = "전체 갱신 · 국가 ETF 수집";
-      const countries = await collectCountryMarketData();
-      generatedAt = await storeMarketDraft(runId, primary, countries, "all");
-      await setRefreshStage(runId, "collecting");
 
-      stage = "전체 갱신 · X 게시물 수집";
-      const context = await collectSocialPosts(runId);
-      stage = "전체 갱신 · X 원문 우선 저장";
-      await storeSocialCollectionDraft(runId, context);
-      await setRefreshStage(runId, "collecting");
-      const posts = context.prepared.postsToAnalyze;
-      const batchCount = Math.ceil(posts.length / OPENAI_BATCH_SIZE);
-      const analysis: PostAnalysisResult[] = [];
-      for (let index = 0; index < posts.length; index += OPENAI_BATCH_SIZE) {
-        const batchNumber = Math.floor(index / OPENAI_BATCH_SIZE) + 1;
-        stage = `전체 갱신 · OpenAI 기업 분석 ${batchNumber}/${batchCount}`;
-        analysis.push(...await analyzeSocialBatch(
-          posts.slice(index, index + OPENAI_BATCH_SIZE),
-          context.prepared.analysisModel,
-        ));
+      if (targets.has("market")) {
+        stage = "선택 갱신 · 주요 시장지수 수집";
+        const primary = await collectPrimaryMarketData();
+        await storeMarketDraft(runId, primary, {
+          provider: primary.provider,
+          series: [],
+          warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+        }, "all");
+        await setRefreshStage(runId, "collecting");
+        if (primary.provider === "Twelve Data") {
+          stage = "선택 갱신 · 무료 API 호출 한도 대기";
+          await sleep("61s");
+        } else {
+          stage = "선택 갱신 · 무료 API 호출 간격 대기";
+          await sleep("2s");
+        }
+        stage = "선택 갱신 · 국가 ETF 수집";
+        const countries = await collectCountryMarketData();
+        generatedAt = await storeMarketDraft(runId, primary, countries, "all");
+        await setRefreshStage(runId, "collecting");
       }
-      stage = "전체 갱신 · 전체 주제 요약";
-      const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
-      stage = "전체 갱신 · 최종 결과 임시 저장";
-      await storeSocialDraft(runId, context, analysis, topicResult);
-      generatedAt = context.generatedAt;
+
+      if (targets.has("social")) {
+        stage = "선택 갱신 · X 게시물 수집";
+        const context = await collectSocialPosts(runId);
+        stage = "선택 갱신 · X 원문 우선 저장";
+        await storeSocialCollectionDraft(runId, context);
+        await setRefreshStage(runId, "collecting");
+        const posts = context.prepared.postsToAnalyze;
+        const batchCount = Math.ceil(posts.length / OPENAI_BATCH_SIZE);
+        const analysis: PostAnalysisResult[] = [];
+        for (let index = 0; index < posts.length; index += OPENAI_BATCH_SIZE) {
+          const batchNumber = Math.floor(index / OPENAI_BATCH_SIZE) + 1;
+          stage = `선택 갱신 · OpenAI 기업 분석 ${batchNumber}/${batchCount}`;
+          analysis.push(...await analyzeSocialBatch(
+            posts.slice(index, index + OPENAI_BATCH_SIZE),
+            context.prepared.analysisModel,
+          ));
+        }
+        stage = "선택 갱신 · 전체 주제 요약";
+        const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
+        stage = "선택 갱신 · 최종 결과 임시 저장";
+        await storeSocialDraft(runId, context, analysis, topicResult);
+        generatedAt = context.generatedAt;
+      }
     } else if (source === "macro") {
       stage = "매크로 지표 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
@@ -430,7 +440,16 @@ export async function refreshDataWorkflow(
     }
     stage = "스냅샷 저장";
     await publishRefresh(runId);
-    return { ok: true, generatedAt };
+    if (source === "all" && comprehensiveModel) {
+      try {
+        stage = "종합분석 작업 등록";
+        const analysisRun = await queueLatestComprehensiveAnalysis(comprehensiveModel);
+        return { ok: true, generatedAt, analysisQueued: true, analysisRunId: analysisRun.runId };
+      } catch (error) {
+        return { ok: true, generatedAt, analysisQueued: false, analysisError: refreshErrorMessage(error) };
+      }
+    }
+    return { ok: true, generatedAt, analysisQueued: false };
   } catch (error) {
     const message = `${stage}: ${refreshErrorMessage(error)}`;
     if (source === "all") {

@@ -19,23 +19,6 @@ export function RefreshButton({ source, initialRun, compact = false }: { source:
   );
 }
 
-export function FullRefreshButton({ initialRun }: { initialRun: RefreshRunStatus | null }) {
-  const refresh = useRefreshJob("all", initialRun);
-  function startFullRefresh() {
-    if (!window.confirm("매크로·시장지수·X 수집 및 LLM 분석을 모두 실행합니다. X와 OpenAI API 요금이 발생할 수 있습니다. 계속할까요?")) return;
-    void refresh.startRefresh();
-  }
-  return (
-    <div className="action-wrap compact full-refresh-wrap">
-      <button className={refresh.completed ? "combined-button refresh-button completed" : "combined-button refresh-button"} type="button" onClick={startFullRefresh} disabled={refresh.busy || refresh.completed}>
-        <span className={refresh.busy && refresh.ownRun ? "refresh-icon spinning" : "refresh-icon"} aria-hidden="true">{refresh.completed ? "✓" : "↻"}</span>
-        {refresh.completed ? "전체 갱신 완료" : refresh.starting ? "요청 중" : refresh.running ? (refresh.ownRun ? "전체 갱신 중" : "다른 갱신 중") : "전체 갱신"}
-      </button>
-      {refresh.message ? <p className={refresh.isError ? "action-message error" : "action-message"} role="status">{refresh.message}</p> : null}
-    </div>
-  );
-}
-
 export function LogoutButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);

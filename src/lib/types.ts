@@ -56,6 +56,7 @@ export interface MarketSnapshot {
 }
 
 export type RefreshSource = "macro" | "market" | "social" | "all";
+export type RefreshTarget = Exclude<RefreshSource, "all">;
 export type SocialRefreshMode = "collect_and_analyze" | "collect_only" | "analyze_only";
 export type RefreshRunState = "running" | "success" | "failed";
 export type RefreshStage = "queued" | "collecting" | "saving" | "completed" | "failed";

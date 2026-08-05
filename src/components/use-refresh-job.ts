@@ -82,6 +82,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
         throw new Error(body.error ?? "갱신 작업을 시작하지 못했습니다.");
       }
       applyRun(body.run ?? null);
+      window.dispatchEvent(new Event("blackturtle:refresh-started"));
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "갱신 작업을 시작하지 못했습니다.";
@@ -129,6 +130,7 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
     completed: recentlyCompleted,
     message,
     isError,
+    checkStatus,
     startRefresh,
   };
 }
