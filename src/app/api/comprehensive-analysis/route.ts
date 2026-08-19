@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { buildComprehensiveAnalysisInput, buildManualComprehensiveAnalysisPrompt, COMPREHENSIVE_MAX_OUTPUT_TOKENS, estimateAnalysisInputTokens, estimateManualAnalysisPromptTokens, parseManualComprehensiveAnalysisResult } from "@/lib/comprehensive-analysis";
 import { isOpenAIComprehensiveModel, resolveOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
-import { getComprehensiveAnalysisState, getLatestSnapshot, getSnapshotById, getSupabaseAdmin } from "@/lib/supabase";
+import { getComprehensiveAnalysisState, getInvestorResearchState, getLatestSnapshot, getPortfolioItems, getSnapshotById, getSupabaseAdmin } from "@/lib/supabase";
 import type { ComprehensiveAnalysisReport } from "@/lib/types";
 import { comprehensiveAnalysisWorkflow } from "@/workflows/comprehensive-analysis";
 
@@ -67,7 +67,8 @@ export async function POST(request: Request) {
     if (!sourceSnapshot) return NextResponse.json({ error: "이 결과가 참조하는 저장 데이터를 찾지 못했습니다. 프롬프트를 다시 복사해 분석하세요." }, { status: 400 });
     const supabase = getSupabaseAdmin();
     if (!supabase) return NextResponse.json({ error: "Supabase 연결이 설정되지 않았습니다." }, { status: 503 });
-    const estimatedInputTokens = estimateManualAnalysisPromptTokens(buildManualComprehensiveAnalysisPrompt(sourceSnapshot.payload, sourceSnapshot.id));
+    const [research, portfolio] = await Promise.all([getInvestorResearchState(), getPortfolioItems()]);
+    const estimatedInputTokens = estimateManualAnalysisPromptTokens(buildManualComprehensiveAnalysisPrompt(sourceSnapshot.payload, sourceSnapshot.id, research, portfolio.items));
     const model = `직접 입력 · ${manualSourceModel || "외부 AI"}`;
     const { data: runId, error: startError } = await supabase.rpc("start_comprehensive_analysis", {
       p_snapshot_id: sourceSnapshot.id,
@@ -103,10 +104,11 @@ export async function POST(request: Request) {
   const hasData = snapshot.payload.macro.length || snapshot.payload.market?.series.length || snapshot.payload.social.posts.length;
   if (!hasData) return NextResponse.json({ error: "분석할 매크로·시장지수·모니터링 데이터가 없습니다." }, { status: 400 });
 
-  const input = buildComprehensiveAnalysisInput(snapshot.payload);
+  const [research, portfolio] = await Promise.all([getInvestorResearchState(), getPortfolioItems()]);
+  const input = buildComprehensiveAnalysisInput(snapshot.payload, research, portfolio.items);
   const estimatedInputTokens = estimateAnalysisInputTokens(input);
   if (action === "manual-prompt") {
-    const prompt = buildManualComprehensiveAnalysisPrompt(snapshot.payload, snapshot.id);
+    const prompt = buildManualComprehensiveAnalysisPrompt(snapshot.payload, snapshot.id, research, portfolio.items);
     return NextResponse.json({
       snapshotId: snapshot.id,
       prompt,
@@ -126,6 +128,8 @@ export async function POST(request: Request) {
         macro: snapshot.payload.macro.length,
         market: (snapshot.payload.market?.series.length ?? 0) + (snapshot.payload.market?.countryEtfs.length ?? 0),
         posts: snapshot.payload.social.posts.length,
+        portfolio: portfolio.items.length,
+        events: research.macro.economicEvents.length + research.market.earningsEvents.length + research.market.secFilings.length,
       },
     }, { headers: { "Cache-Control": "no-store" } });
   }

@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-import { buildMarketSeries, MARKET_DEFINITIONS, type MarketBatchResult, type MarketDefinition } from "@/lib/market-data";
+import { readJsonResponse } from "@/lib/http-json";
+import { buildMarketSeries, MARKET_DEFINITIONS, portfolioMarketDefinition, type MarketBatchResult, type MarketDefinition } from "@/lib/market-data";
 import type { MarketPoint, MarketSeries } from "@/lib/types";
 
 const ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query";
@@ -52,9 +53,25 @@ async function collectOne(definition: MarketDefinition, apiKey: string): Promise
   const response = await fetchWithTimeout(`${ALPHA_VANTAGE_URL}?${requestParams(definition, apiKey)}`, {
     cache: "no-store",
   }, 40_000, `Alpha Vantage ${definition.label}`);
-  const body = await response.json() as AlphaVantageResponse;
+  const body = await readJsonResponse<AlphaVantageResponse>(response, `Alpha Vantage ${definition.label}`);
   if (!response.ok) throw new Error(responseError(body) ?? response.statusText);
   return parseWeeklySeries(definition, body);
+}
+
+export async function collectAlphaVantagePortfolioBatch(apiKey: string, tickers: string[]): Promise<MarketBatchResult> {
+  const definitions = [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter((ticker) => /^[A-Z][A-Z0-9.-]{0,14}$/.test(ticker)))]
+    .map(portfolioMarketDefinition);
+  const series: MarketSeries[] = [];
+  const warnings: string[] = [];
+  for (const definition of definitions) {
+    try {
+      series.push(await collectOne(definition, apiKey));
+    } catch (error) {
+      warnings.push(`${definition.symbol}: ${error instanceof Error ? error.message : "알 수 없는 오류"}`.slice(0, 240));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+  }
+  return { provider: "Alpha Vantage", series, warnings };
 }
 
 export async function collectAlphaVantageMarketBatch(apiKey: string, definitionIds: string[]): Promise<MarketBatchResult> {

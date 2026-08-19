@@ -57,7 +57,14 @@ function yieldSignal(value: number, maturity: "단기" | "장기"): MacroSignal 
   return signal("good", `${maturity}금리 ${format(value, 2)}%로 금리 부담이 비교적 낮은 구간입니다.`);
 }
 
-export function getMacroSignal(series: MacroSeries): MacroSignal {
+function percentChange(points: MacroPoint[], periods: number): number | null {
+  if (points.length <= periods) return null;
+  const current = points.at(-1)!.value;
+  const previous = points.at(-(periods + 1))!.value;
+  return previous === 0 ? null : ((current / previous) - 1) * 100;
+}
+
+function baseMacroSignal(series: MacroSeries): MacroSignal {
   switch (series.id) {
     case "DGS2":
       return yieldSignal(series.current, "단기");
@@ -79,6 +86,18 @@ export function getMacroSignal(series: MacroSeries): MacroSignal {
       if (growth <= 3.5) return signal("watch", `CPI가 전년 대비 +${format(growth)}%로 물가 압력이 아직 다소 높습니다.`);
       return signal("risk", `CPI가 전년 대비 +${format(growth)}%로 높은 물가 압력이 이어지는 구간입니다.`);
     }
+    case "PCEPILFE": {
+      const growth = yearOverYear(series.points);
+      if (growth === null) return signal("neutral", "근원 PCE 전년 대비 상승률을 계산할 관측값이 부족합니다.");
+      if (growth <= 2.3) return signal("good", `근원 PCE가 전년 대비 +${format(growth)}%로 연준 목표에 비교적 가까운 구간입니다.`);
+      if (growth <= 3.2) return signal("watch", `근원 PCE가 전년 대비 +${format(growth)}%로 물가 둔화를 더 확인할 구간입니다.`);
+      return signal("risk", `근원 PCE가 전년 대비 +${format(growth)}%로 기조적 물가 압력이 높은 구간입니다.`);
+    }
+    case "T10YIE":
+    case "T5YIFR":
+      if (series.current >= 3) return signal("risk", `기대 인플레이션 ${format(series.current, 2)}%로 장기 물가 기대 상승을 경계할 구간입니다.`);
+      if (series.current >= 2.5 || series.current < 1.5) return signal("watch", `기대 인플레이션 ${format(series.current, 2)}%로 목표 부근에서 벗어나는지 확인할 구간입니다.`);
+      return signal("good", `기대 인플레이션 ${format(series.current, 2)}%로 장기 기대가 비교적 안정적인 구간입니다.`);
     case "UNRATE": {
       const labor = sahmGap(series.points);
       if (!labor) return signal("neutral", "고용 위험 추세를 계산할 관측값이 부족합니다.");
@@ -96,6 +115,27 @@ export function getMacroSignal(series: MacroSeries): MacroSignal {
       if (average < 150) return signal("watch", detail);
       return signal("good", detail);
     }
+    case "ICSA":
+    case "CCSA": {
+      const recent = series.points.slice(-4);
+      if (!recent.length) return signal("neutral", "실업수당 청구 추세를 계산할 관측값이 부족합니다.");
+      const average = recent.reduce((sum, point) => sum + point.value, 0) / recent.length;
+      const sixMonthsAgo = series.points.at(-30)?.value ?? series.points[0]?.value;
+      const change = sixMonthsAgo ? ((average / sixMonthsAgo) - 1) * 100 : 0;
+      const detail = `최근 4주 평균 ${format(average, 0)}건, 약 6개월 전 대비 ${change >= 0 ? "+" : ""}${format(change)}%입니다.`;
+      if (change >= 20) return signal("risk", detail);
+      if (change >= 8) return signal("watch", detail);
+      return signal("good", detail);
+    }
+    case "INDPRO":
+    case "RSAFS": {
+      const growth = yearOverYear(series.points);
+      if (growth === null) return signal("neutral", "전년 대비 경기 모멘텀을 계산할 관측값이 부족합니다.");
+      const detail = `전년 대비 ${growth >= 0 ? "+" : ""}${format(growth)}%입니다.`;
+      if (growth < -2) return signal("risk", detail);
+      if (growth < 0.5) return signal("watch", detail);
+      return signal("good", detail);
+    }
     case "M2SL": {
       const growth = yearOverYear(series.points);
       if (growth === null) return signal("neutral", "전년 대비 통화량 증가율을 계산할 관측값이 부족합니다.");
@@ -105,6 +145,26 @@ export function getMacroSignal(series: MacroSeries): MacroSignal {
       if (growth < 0 || growth > 8) return signal("watch", detail);
       return signal("good", detail);
     }
+    case "WALCL": {
+      const change = percentChange(series.points, 13);
+      if (change === null) return signal("neutral", "연준 자산의 최근 방향을 계산할 관측값이 부족합니다.");
+      if (change < -2) return signal("watch", `연준 총자산이 약 3개월 동안 ${format(change)}% 감소해 유동성 축소가 이어졌습니다.`);
+      return signal("good", `연준 총자산이 약 3개월 동안 ${change >= 0 ? "+" : ""}${format(change)}% 변했습니다.`);
+    }
+    case "WTREGEN":
+    case "RRPONTSYD": {
+      const change = percentChange(series.points, Math.min(20, Math.max(1, series.points.length - 1)));
+      if (change === null) return signal("neutral", "최근 유동성 방향을 계산할 관측값이 부족합니다.");
+      return signal("neutral", `최근 저장 구간에서 ${change >= 0 ? "+" : ""}${format(change)}% 변했습니다. 다른 유동성 항목과 합쳐 해석합니다.`);
+    }
+    case "NFCI":
+      if (series.current >= 0.5) return signal("risk", `NFCI ${format(series.current, 2)}로 금융여건이 장기 평균보다 뚜렷하게 긴축적입니다.`);
+      if (series.current > 0) return signal("watch", `NFCI ${format(series.current, 2)}로 금융여건이 장기 평균보다 다소 긴축적입니다.`);
+      return signal("good", `NFCI ${format(series.current, 2)}로 금융여건이 장기 평균보다 완화적입니다.`);
+    case "BAMLH0A0HYM2":
+      if (series.current >= 6) return signal("risk", `하이일드 스프레드 ${format(series.current, 2)}%p로 신용 스트레스가 높은 구간입니다.`);
+      if (series.current >= 4) return signal("watch", `하이일드 스프레드 ${format(series.current, 2)}%p로 신용 위험 프리미엄 확대를 지켜볼 구간입니다.`);
+      return signal("good", `하이일드 스프레드 ${format(series.current, 2)}%p로 신용시장이 비교적 안정적입니다.`);
     case "VIXCLS":
       if (series.current >= 30) return signal("risk", `VIX ${format(series.current, 2)}로 강한 위험회피 구간입니다.`);
       if (series.current >= 20) return signal("watch", `VIX ${format(series.current, 2)}로 시장 불안이 확대된 구간입니다.`);
@@ -119,4 +179,17 @@ export function getMacroSignal(series: MacroSeries): MacroSignal {
     default:
       return signal("neutral", "이 지표에는 아직 자동 상태 판단 기준이 없습니다.");
   }
+}
+
+function percentileContext(series: MacroSeries): string {
+  const values = series.points.map((point) => point.value).filter(Number.isFinite);
+  if (values.length < 12) return "";
+  const rank = values.filter((value) => value <= series.current).length / values.length;
+  return `저장된 ${values.length}개 관측치 중 약 ${Math.round(rank * 100)}백분위입니다.`;
+}
+
+export function getMacroSignal(series: MacroSeries): MacroSignal {
+  const base = baseMacroSignal(series);
+  const context = percentileContext(series);
+  return context ? { ...base, detail: `${base.detail} ${context}` } : base;
 }

@@ -1,7 +1,7 @@
 import { analyzeDashboardWithOpenAI, buildComprehensiveAnalysisInput, estimateAnalysisInputTokens } from "@/lib/comprehensive-analysis";
 import { resolveOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { refreshErrorMessage } from "@/lib/refresh-runner";
-import { getLatestSnapshot, getSnapshotById, getSupabaseAdmin } from "@/lib/supabase";
+import { getInvestorResearchState, getLatestSnapshot, getPortfolioItems, getSnapshotById, getSupabaseAdmin } from "@/lib/supabase";
 import type { ComprehensiveAnalysisReport } from "@/lib/types";
 import { start } from "workflow/api";
 
@@ -15,12 +15,13 @@ async function analyzeAndStore(runId: string, snapshotId: string, requestedModel
   const snapshot = await getSnapshotById(snapshotId);
   if (!snapshot) throw new Error("분석할 대시보드 스냅샷을 찾지 못했습니다.");
   const model = resolveOpenAIComprehensiveModel(requestedModel || process.env.OPENAI_COMPREHENSIVE_MODEL);
-  const estimatedInputTokens = estimateAnalysisInputTokens(buildComprehensiveAnalysisInput(snapshot.payload));
+  const [research, portfolio] = await Promise.all([getInvestorResearchState(), getPortfolioItems()]);
+  const estimatedInputTokens = estimateAnalysisInputTokens(buildComprehensiveAnalysisInput(snapshot.payload, research, portfolio.items));
 
   const stageResult = await supabase.rpc("set_comprehensive_analysis_stage", { p_run_id: runId, p_stage: "analyzing" });
   if (stageResult.error) throw new Error(`종합분석 상태 저장 실패: ${stageResult.error.message}`);
 
-  const generated = await analyzeDashboardWithOpenAI(snapshot.payload, apiKey, model);
+  const generated = await analyzeDashboardWithOpenAI(snapshot.payload, apiKey, model, research, portfolio.items);
   const report: ComprehensiveAnalysisReport = {
     version: 2,
     generatedAt: new Date().toISOString(),
@@ -60,7 +61,8 @@ export async function queueLatestComprehensiveAnalysis(requestedModel: string) {
   if (!hasData) throw new Error("종합분석할 저장 데이터가 없습니다.");
 
   const model = resolveOpenAIComprehensiveModel(requestedModel || process.env.OPENAI_COMPREHENSIVE_MODEL);
-  const estimatedInputTokens = estimateAnalysisInputTokens(buildComprehensiveAnalysisInput(snapshot.payload));
+  const [research, portfolio] = await Promise.all([getInvestorResearchState(), getPortfolioItems()]);
+  const estimatedInputTokens = estimateAnalysisInputTokens(buildComprehensiveAnalysisInput(snapshot.payload, research, portfolio.items));
   const { data: runId, error: startError } = await supabase.rpc("start_comprehensive_analysis", {
     p_snapshot_id: snapshot.id,
     p_model: model,

@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { readJsonResponse } from "@/lib/http-json";
 import { OPENAI_REASONING_EFFORT } from "@/lib/openai-config";
 import type { SocialPost, TopicSummary } from "@/lib/types";
 
@@ -22,6 +23,10 @@ interface TopicPayload {
     post_ids?: unknown;
   }>;
 }
+
+export const TOPIC_ANALYSIS_PROMPT_VERSION = "2026-08-20.2";
+const MAX_TOPIC_POSTS = 120;
+const MAX_TOPIC_POST_CHARACTERS = 1_400;
 
 const TOPIC_SCHEMA = {
   type: "object",
@@ -78,7 +83,28 @@ export async function analyzeTopicsWithOpenAI(
 ): Promise<TopicSummary[]> {
   if (!posts.length) return [];
 
-  const keyedPosts = posts.map((post, index) => ({ key: `p${index}`, post }));
+  // 계정 한 곳의 대량 게시물이 전체 주제를 독점하지 않도록 계정별 최신 글을 라운드로빈한다.
+  // 동일 본문은 제거하고 입력 크기를 제한해 긴 수집에서도 시간 초과와 불필요한 토큰 사용을 막는다.
+  const seen = new Set<string>();
+  const grouped = new Map<string, RawPost[]>();
+  for (const post of posts.slice().sort((left, right) => right.postedAt.localeCompare(left.postedAt))) {
+    const normalized = post.text.replace(/\s+/g, " ").trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    const key = post.username.toLowerCase();
+    grouped.set(key, [...(grouped.get(key) ?? []), post]);
+  }
+  const selected: RawPost[] = [];
+  const queues = [...grouped.values()];
+  while (selected.length < MAX_TOPIC_POSTS && queues.some((queue) => queue.length)) {
+    for (const queue of queues) {
+      const post = queue.shift();
+      if (post) selected.push(post);
+      if (selected.length >= MAX_TOPIC_POSTS) break;
+    }
+  }
+
+  const keyedPosts = selected.map((post, index) => ({ key: `p${index}`, post }));
   const response = await fetchWithTimeout("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -95,7 +121,7 @@ export async function analyzeTopicsWithOpenAI(
           id: key,
           account: post.username,
           posted_at: post.postedAt,
-          text: post.text,
+          text: post.text.length <= MAX_TOPIC_POST_CHARACTERS ? post.text : `${post.text.slice(0, MAX_TOPIC_POST_CHARACTERS - 1)}…`,
         })),
       }),
       max_output_tokens: 8_000,
@@ -111,7 +137,7 @@ export async function analyzeTopicsWithOpenAI(
     cache: "no-store",
   }, 240_000, `OpenAI ${model} 주제 요약`);
 
-  const body = (await response.json()) as OpenAIResponse;
+  const body = await readJsonResponse<OpenAIResponse>(response, `OpenAI ${model} 주제 요약`);
   if (!response.ok) {
     throw new Error(`OpenAI 주제 요약 실패 (${response.status}): ${(body.error?.message ?? response.statusText).slice(0, 300)}`);
   }

@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { readJsonResponse } from "@/lib/http-json";
 import type { MarketInstrumentType, MarketPoint, MarketSeries, MarketSeriesGroup } from "@/lib/types";
 
 const TWELVE_DATA_TIME_SERIES_URL = "https://api.twelvedata.com/time_series";
@@ -42,13 +43,22 @@ export const MARKET_DEFINITIONS: readonly MarketDefinition[] = [
   { id: "dollar_index", label: "달러인덱스", symbol: "UUP", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "미 달러 강세 ETF · ICE DXY 대용" },
   { id: "kospi", label: "코스피", symbol: "EWY", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI 한국 ETF 대용" },
   { id: "sox", label: "필라델피아 반도체", symbol: "SOXX", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "미국 반도체 ETF 대용" },
+  { id: "equal_weight", label: "S&P 500 동일가중", symbol: "RSP", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "시장 폭 · RSP/SPY 계산용" },
+  { id: "small_cap", label: "미국 소형주", symbol: "IWM", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "소형주 위험선호 · IWM/SPY 계산용" },
+  { id: "high_yield", label: "미국 하이일드채", symbol: "HYG", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "신용 위험선호 · HYG/IEF 계산용" },
+  { id: "treasury_intermediate", label: "미국 7–10년 국채", symbol: "IEF", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "중기 국채 ETF" },
+  { id: "investment_grade", label: "미국 투자등급채", symbol: "LQD", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "투자등급 회사채 ETF" },
+  { id: "consumer_discretionary", label: "미국 경기소비재", symbol: "XLY", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "경기민감 소비 · XLY/XLP 계산용" },
+  { id: "consumer_staples", label: "미국 필수소비재", symbol: "XLP", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "방어 소비 · XLY/XLP 계산용" },
   { id: "brazil", label: "브라질", symbol: "EWZ", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI Brazil ETF" },
   { id: "india", label: "인도", symbol: "INDA", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI India ETF" },
   { id: "vietnam", label: "베트남", symbol: "VNM", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "Vietnam ETF" },
   { id: "japan", label: "일본", symbol: "EWJ", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI Japan ETF" },
 ];
 
-export const MARKET_PRIMARY_IDS = MARKET_DEFINITIONS.filter((definition) => definition.group === "market").map((definition) => definition.id);
+export const MARKET_CORE_IDS = ["sp500", "nasdaq", "gold", "bitcoin", "usdkrw", "dollar_index", "kospi", "sox"];
+export const MARKET_SIGNAL_IDS = ["equal_weight", "small_cap", "high_yield", "treasury_intermediate", "investment_grade", "consumer_discretionary", "consumer_staples"];
+export const MARKET_PRIMARY_IDS = [...MARKET_CORE_IDS, ...MARKET_SIGNAL_IDS];
 export const MARKET_COUNTRY_IDS = MARKET_DEFINITIONS.filter((definition) => definition.group === "country").map((definition) => definition.id);
 
 function readSeriesPayload(payload: unknown, definition: MarketDefinition, batchSize: number): TwelveDataSeriesResponse | null {
@@ -134,7 +144,7 @@ export async function collectMarketBatch(apiKey: string, definitionIds: string[]
     cache: "no-store",
     headers: { Authorization: `apikey ${apiKey}` },
   }, 45_000, "Twelve Data 시장지수");
-  const payload = await response.json() as unknown;
+  const payload = await readJsonResponse<unknown>(response, "Twelve Data 시장지수");
   if (!response.ok) {
     const body = payload && typeof payload === "object" ? payload as TwelveDataSeriesResponse : null;
     throw new Error(`Twelve Data: ${body?.message ?? response.statusText}`);
@@ -153,5 +163,56 @@ export async function collectMarketBatch(apiKey: string, definitionIds: string[]
     }
   }
   if (!series.length) throw new Error(warnings.join(" · ") || "수집된 시장 데이터가 없습니다.");
+  return { provider: "Twelve Data", series, warnings };
+}
+
+export function portfolioMarketDefinition(ticker: string): MarketDefinition {
+  const normalized = ticker.trim().toUpperCase();
+  return {
+    id: `portfolio_${normalized.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+    label: normalized,
+    symbol: normalized,
+    group: "market",
+    instrumentType: "etf",
+    currency: "USD",
+    decimals: 2,
+    benchmark: "관심종목 저장 가격",
+  };
+}
+
+export async function collectPortfolioMarketBatch(apiKey: string, tickers: string[]): Promise<MarketBatchResult> {
+  const definitions = [...new Set(tickers.map((ticker) => ticker.trim().toUpperCase()).filter((ticker) => /^[A-Z][A-Z0-9.-]{0,14}$/.test(ticker)))]
+    .map(portfolioMarketDefinition);
+  if (!definitions.length) return { provider: "Twelve Data", series: [], warnings: [] };
+
+  const params = new URLSearchParams({
+    symbol: definitions.map((definition) => definition.symbol).join(","),
+    interval: "1day",
+    outputsize: String(MARKET_OUTPUT_SIZE),
+    order: "ASC",
+    timezone: "UTC",
+    format: "JSON",
+  });
+  const response = await fetchWithTimeout(`${TWELVE_DATA_TIME_SERIES_URL}?${params}`, {
+    cache: "no-store",
+    headers: { Authorization: `apikey ${apiKey}` },
+  }, 45_000, "Twelve Data 관심종목");
+  const payload = await readJsonResponse<unknown>(response, "Twelve Data 관심종목");
+  if (!response.ok) {
+    const body = payload && typeof payload === "object" ? payload as TwelveDataSeriesResponse : null;
+    throw new Error(`Twelve Data: ${body?.message ?? response.statusText}`);
+  }
+
+  const series: MarketSeries[] = [];
+  const warnings: string[] = [];
+  for (const definition of definitions) {
+    try {
+      const body = readSeriesPayload(payload, definition, definitions.length);
+      if (!body) throw new Error("응답에서 심볼을 찾지 못했습니다.");
+      series.push(buildTwelveDataSeries(definition, body));
+    } catch (error) {
+      warnings.push(`${definition.symbol}: ${error instanceof Error ? error.message : "알 수 없는 오류"}`.slice(0, 240));
+    }
+  }
   return { provider: "Twelve Data", series, warnings };
 }

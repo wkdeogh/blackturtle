@@ -1,4 +1,4 @@
-import { aggregateMentions, analyzePostsWithOpenAI, type PostAnalysisResult } from "@/lib/social-analysis";
+import { aggregateMentions, analyzePostsWithOpenAI, SOCIAL_ANALYSIS_PROMPT_VERSION, type PostAnalysisResult } from "@/lib/social-analysis";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { readJsonResponse } from "@/lib/http-json";
 import type { DashboardSnapshot, SocialPost, XAccountCursor, XTickerCursor } from "@/lib/types";
@@ -8,6 +8,7 @@ export type RawSocialPost = Omit<SocialPost, "mentions" | "translationKo" | "ana
 
 export interface PreparedXCollection {
   analysisModel: string;
+  analysisPromptVersion: string;
   periodDays: number;
   accounts: XAccountCursor[];
   tickerPeriodDays?: number;
@@ -15,6 +16,16 @@ export interface PreparedXCollection {
   rawPosts: RawSocialPost[];
   postsToAnalyze: RawSocialPost[];
   reusedAnalysis: PostAnalysisResult[];
+  collectionWarnings: string[];
+  collectionMetrics: NonNullable<DashboardSnapshot["social"]["collectionMetrics"]>;
+}
+
+interface PageCollectionResult {
+  posts: RawSocialPost[];
+  newestPostId?: string;
+  pendingNewestPostId?: string;
+  backfillUntilId?: string;
+  apiCalls: number;
 }
 
 interface XUserResponse {
@@ -50,12 +61,17 @@ async function getPosts(
   token: string,
   lookbackDays: number,
   postLimit: number | null,
-  sinceId?: string,
-): Promise<{ posts: RawSocialPost[]; newestPostId?: string }> {
+  cursor?: XAccountCursor,
+): Promise<PageCollectionResult> {
   const posts: RawSocialPost[] = [];
   const seenTokens = new Set<string>();
   let paginationToken: string | undefined;
-  let newestPostId: string | undefined = sinceId;
+  const sinceId = cursor?.newestPostId;
+  let pendingNewestPostId = cursor?.pendingNewestPostId;
+  let backfillUntilId = cursor?.backfillUntilId;
+  let newestFromResponse: string | undefined;
+  let apiCalls = 0;
+  let responseHasMore = false;
 
   do {
     const remaining = postLimit === null ? 100 : Math.max(0, postLimit - posts.length);
@@ -70,6 +86,7 @@ async function getPosts(
     } else {
       params.set("start_time", new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"));
     }
+    if (backfillUntilId) params.set("until_id", backfillUntilId);
     if (paginationToken) params.set("pagination_token", paginationToken);
 
     const response = await fetchWithTimeout(`https://api.x.com/2/users/${user.id}/tweets?${params}`, {
@@ -77,10 +94,11 @@ async function getPosts(
       cache: "no-store",
     }, 45_000, `X @${user.username} 게시물 조회`);
     const body = await readJsonResponse<XPostsResponse>(response, `X @${user.username} 게시물 조회`);
+    apiCalls += 1;
     if (!response.ok) {
       throw new Error(`X @${user.username}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);
     }
-    if (!paginationToken) newestPostId = body.meta?.newest_id ?? sinceId;
+    if (!paginationToken) newestFromResponse = body.meta?.newest_id ?? undefined;
     posts.push(...(body.data ?? []).map((post) => ({
       id: post.id,
       username: user.username,
@@ -92,14 +110,23 @@ async function getPosts(
     })));
 
     const nextToken = body.meta?.next_token;
+    responseHasMore = Boolean(nextToken);
     if (!nextToken || seenTokens.has(nextToken)) break;
     seenTokens.add(nextToken);
     paginationToken = nextToken;
   } while (postLimit === null || posts.length < postLimit);
 
+  const selected = postLimit === null ? posts : posts.slice(0, postLimit);
+  const hasUnconsumed = responseHasMore || selected.length < posts.length;
+  if (hasUnconsumed && selected.length) {
+    pendingNewestPostId = pendingNewestPostId ?? newestFromResponse ?? sinceId;
+    backfillUntilId = selected.at(-1)!.id;
+    return { posts: selected, newestPostId: sinceId, pendingNewestPostId, backfillUntilId, apiCalls };
+  }
   return {
-    newestPostId,
-    posts: postLimit === null ? posts : posts.slice(0, postLimit),
+    posts: selected,
+    newestPostId: pendingNewestPostId ?? newestFromResponse ?? sinceId,
+    apiCalls,
   };
 }
 
@@ -114,35 +141,57 @@ export async function prepareXCollection(
 ): Promise<PreparedXCollection> {
   const previousCursors = new Map(previous?.accounts.map((account) => [account.username.toLowerCase(), account]) ?? []);
   const results: Array<{ cursor: XAccountCursor; posts: RawSocialPost[] }> = [];
+  const collectionWarnings: string[] = [];
+  let apiCalls = 0;
+  let targetsAttempted = 0;
+  let targetsSucceeded = 0;
   let remainingTotal = totalPostLimit;
 
   for (const username of usernames) {
     const oldCursor = previousCursors.get(username.toLowerCase());
     if (remainingTotal !== null && remainingTotal <= 0) {
       results.push({
-        cursor: { username, userId: oldCursor?.userId ?? "", newestPostId: oldCursor?.newestPostId },
+        cursor: {
+          username,
+          userId: oldCursor?.userId ?? "",
+          newestPostId: oldCursor?.newestPostId,
+          pendingNewestPostId: oldCursor?.pendingNewestPostId,
+          backfillUntilId: oldCursor?.backfillUntilId,
+        },
         posts: [],
       });
       continue;
     }
 
-    const user = oldCursor?.userId ? { id: oldCursor.userId, username } : await getUser(username, token);
-    const canUseCursor = previous && previous.periodDays >= lookbackDays;
-    const effectiveLimit = perAccountPostLimit === null
-      ? remainingTotal
-      : remainingTotal === null
-        ? perAccountPostLimit
-        : Math.min(perAccountPostLimit, remainingTotal);
-    const result = await getPosts(
-      user,
-      token,
-      lookbackDays,
-      effectiveLimit,
-      canUseCursor ? oldCursor?.newestPostId : undefined,
-    );
-    const cursor: XAccountCursor = { username, userId: user.id, newestPostId: result.newestPostId };
-    results.push({ cursor, posts: result.posts });
-    if (remainingTotal !== null) remainingTotal -= result.posts.length;
+    targetsAttempted += 1;
+    try {
+      const user = oldCursor?.userId ? { id: oldCursor.userId, username } : await getUser(username, token);
+      if (!oldCursor?.userId) apiCalls += 1;
+      const canUseCursor = previous && previous.periodDays >= lookbackDays;
+      const effectiveLimit = perAccountPostLimit === null
+        ? remainingTotal
+        : remainingTotal === null
+          ? perAccountPostLimit
+          : Math.min(perAccountPostLimit, remainingTotal);
+      const result = await getPosts(user, token, lookbackDays, effectiveLimit, canUseCursor ? oldCursor : undefined);
+      apiCalls += result.apiCalls;
+      const cursor: XAccountCursor = {
+        username,
+        userId: user.id,
+        newestPostId: result.newestPostId,
+        pendingNewestPostId: result.pendingNewestPostId,
+        backfillUntilId: result.backfillUntilId,
+      };
+      results.push({ cursor, posts: result.posts });
+      targetsSucceeded += 1;
+      if (remainingTotal !== null) remainingTotal -= result.posts.length;
+    } catch (error) {
+      collectionWarnings.push(`@${username}: ${error instanceof Error ? error.message : "수집 실패"}`.slice(0, 300));
+      results.push({
+        cursor: { username, userId: oldCursor?.userId ?? "", newestPostId: oldCursor?.newestPostId, pendingNewestPostId: oldCursor?.pendingNewestPostId, backfillUntilId: oldCursor?.backfillUntilId },
+        posts: [],
+      });
+    }
   }
 
   const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
@@ -183,11 +232,13 @@ export async function prepareXCollection(
   const rawPosts = [...new Map([...accountPosts, ...preservedTickerPosts].map((post) => [post.id, post])).values()]
     .sort((left, right) => right.postedAt.localeCompare(left.postedAt));
 
-  const canReusePreviousAnalysis = previous?.analysisModel === analysisModel;
+  const canReusePreviousAnalysis = previous?.analysisModel === analysisModel
+    && previous?.analysisPromptVersion === SOCIAL_ANALYSIS_PROMPT_VERSION;
   const previousPosts = new Map((canReusePreviousAnalysis ? previous?.posts.filter((post) => post.analyzed !== false) : [])?.map((post) => [post.id, post]) ?? []);
   const postsToAnalyze = rawPosts.filter((post) => !previousPosts.has(post.id));
   return {
     analysisModel,
+    analysisPromptVersion: SOCIAL_ANALYSIS_PROMPT_VERSION,
     periodDays: lookbackDays,
     accounts: results.map((result) => result.cursor),
     tickerPeriodDays: previous?.tickerPeriodDays,
@@ -198,6 +249,16 @@ export async function prepareXCollection(
       const previousPost = previousPosts.get(post.id);
       return previousPost ? [{ id: post.id, mentions: previousPost.mentions, translationKo: previousPost.translationKo ?? "" }] : [];
     }),
+    collectionWarnings,
+    collectionMetrics: {
+      apiCalls,
+      targetsAttempted,
+      targetsSucceeded,
+      targetsFailed: collectionWarnings.length,
+      fetchedPosts: results.reduce((sum, result) => sum + result.posts.length, 0),
+      reusedAnalyses: rawPosts.filter((post) => previousPosts.has(post.id)).length,
+      pendingAnalyses: postsToAnalyze.length,
+    },
   };
 }
 
@@ -212,12 +273,17 @@ async function getTickerPosts(
   token: string,
   lookbackDays: number,
   postLimit: number | null,
-  sinceId?: string,
-): Promise<{ posts: RawSocialPost[]; newestPostId?: string }> {
+  cursor?: XTickerCursor,
+): Promise<PageCollectionResult> {
   const posts: RawSocialPost[] = [];
   const seenTokens = new Set<string>();
   let paginationToken: string | undefined;
-  let newestPostId = sinceId;
+  const sinceId = cursor?.newestPostId;
+  let pendingNewestPostId = cursor?.pendingNewestPostId;
+  let backfillUntilId = cursor?.backfillUntilId;
+  let newestFromResponse: string | undefined;
+  let apiCalls = 0;
+  let responseHasMore = false;
   do {
     const remaining = postLimit === null ? 100 : Math.max(0, postLimit - posts.length);
     if (postLimit !== null && remaining === 0) break;
@@ -230,6 +296,7 @@ async function getTickerPosts(
     });
     if (sinceId) params.set("since_id", sinceId);
     else params.set("start_time", new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"));
+    if (backfillUntilId) params.set("until_id", backfillUntilId);
     if (paginationToken) params.set("next_token", paginationToken);
 
     const response = await fetchWithTimeout(`https://api.x.com/2/tweets/search/recent?${params}`, {
@@ -237,8 +304,9 @@ async function getTickerPosts(
       cache: "no-store",
     }, 45_000, `X $${setting.ticker} 검색`);
     const body = await readJsonResponse<XPostsResponse>(response, `X $${setting.ticker} 검색`);
+    apiCalls += 1;
     if (!response.ok) throw new Error(`X $${setting.ticker}: ${body.errors?.[0]?.detail ?? body.errors?.[0]?.title ?? response.statusText}`);
-    if (!paginationToken) newestPostId = body.meta?.newest_id ?? sinceId;
+    if (!paginationToken) newestFromResponse = body.meta?.newest_id ?? undefined;
     const usernames = new Map((body.includes?.users ?? []).map((user) => [user.id, user.username]));
     posts.push(...(body.data ?? []).map((post) => {
       const username = usernames.get(post.author_id ?? "") ?? "unknown";
@@ -254,11 +322,19 @@ async function getTickerPosts(
       };
     }));
     const nextToken = body.meta?.next_token;
+    responseHasMore = Boolean(nextToken);
     if (!nextToken || seenTokens.has(nextToken)) break;
     seenTokens.add(nextToken);
     paginationToken = nextToken;
   } while (postLimit === null || posts.length < postLimit);
-  return { newestPostId, posts: postLimit === null ? posts : posts.slice(0, postLimit) };
+  const selected = postLimit === null ? posts : posts.slice(0, postLimit);
+  const hasUnconsumed = responseHasMore || selected.length < posts.length;
+  if (hasUnconsumed && selected.length) {
+    pendingNewestPostId = pendingNewestPostId ?? newestFromResponse ?? sinceId;
+    backfillUntilId = selected.at(-1)!.id;
+    return { posts: selected, newestPostId: sinceId, pendingNewestPostId, backfillUntilId, apiCalls };
+  }
+  return { posts: selected, newestPostId: pendingNewestPostId ?? newestFromResponse ?? sinceId, apiCalls };
 }
 
 export async function prepareXTickerCollection(
@@ -274,31 +350,58 @@ export async function prepareXTickerCollection(
   const previousCursors = new Map((previous?.tickers ?? []).map((cursor) => [cursor.ticker, cursor]));
   const fetched = new Map<string, RawSocialPost>();
   const cursors: XTickerCursor[] = [];
+  const collectionWarnings = [...(previous?.collectionWarnings ?? [])];
+  const previousMetrics = previous?.collectionMetrics;
+  let apiCalls = previousMetrics?.apiCalls ?? 0;
+  let targetsAttempted = previousMetrics?.targetsAttempted ?? 0;
+  let targetsSucceeded = previousMetrics?.targetsSucceeded ?? 0;
+  let targetsFailed = previousMetrics?.targetsFailed ?? 0;
+  let fetchedPostCount = previousMetrics?.fetchedPosts ?? 0;
   let remainingTotal = totalPostLimit;
 
   for (const setting of tickerSettings) {
     const oldCursor = previousCursors.get(setting.ticker);
     if (remainingTotal !== null && remainingTotal <= 0) {
-      cursors.push({ ticker: setting.ticker, newestPostId: oldCursor?.newestPostId });
+      cursors.push({
+        ticker: setting.ticker,
+        newestPostId: oldCursor?.newestPostId,
+        pendingNewestPostId: oldCursor?.pendingNewestPostId,
+        backfillUntilId: oldCursor?.backfillUntilId,
+      });
       continue;
     }
-    const effectiveLimit = perTickerPostLimit === null
-      ? remainingTotal
-      : remainingTotal === null ? perTickerPostLimit : Math.min(perTickerPostLimit, remainingTotal);
-    const canUseCursor = previous && (previous.tickerPeriodDays ?? 0) >= lookbackDays;
-    const result = await getTickerPosts(setting, token, lookbackDays, effectiveLimit, canUseCursor ? oldCursor?.newestPostId : undefined);
-    cursors.push({ ticker: setting.ticker, newestPostId: result.newestPostId });
-    let added = 0;
-    for (const post of result.posts) {
-      const existing = fetched.get(post.id);
-      if (existing) {
-        existing.matchedTickers = [...new Set([...(existing.matchedTickers ?? []), setting.ticker])];
-      } else {
-        fetched.set(post.id, post);
-        added += 1;
+    targetsAttempted += 1;
+    try {
+      const effectiveLimit = perTickerPostLimit === null
+        ? remainingTotal
+        : remainingTotal === null ? perTickerPostLimit : Math.min(perTickerPostLimit, remainingTotal);
+      const canUseCursor = previous && (previous.tickerPeriodDays ?? 0) >= lookbackDays;
+      const result = await getTickerPosts(setting, token, lookbackDays, effectiveLimit, canUseCursor ? oldCursor : undefined);
+      apiCalls += result.apiCalls;
+      targetsSucceeded += 1;
+      fetchedPostCount += result.posts.length;
+      cursors.push({
+        ticker: setting.ticker,
+        newestPostId: result.newestPostId,
+        pendingNewestPostId: result.pendingNewestPostId,
+        backfillUntilId: result.backfillUntilId,
+      });
+      let added = 0;
+      for (const post of result.posts) {
+        const existing = fetched.get(post.id);
+        if (existing) {
+          existing.matchedTickers = [...new Set([...(existing.matchedTickers ?? []), setting.ticker])];
+        } else {
+          fetched.set(post.id, post);
+          added += 1;
+        }
       }
+      if (remainingTotal !== null) remainingTotal -= added;
+    } catch (error) {
+      targetsFailed += 1;
+      collectionWarnings.push(`$${setting.ticker}: ${error instanceof Error ? error.message : "검색 실패"}`.slice(0, 300));
+      cursors.push({ ticker: setting.ticker, newestPostId: oldCursor?.newestPostId, pendingNewestPostId: oldCursor?.pendingNewestPostId, backfillUntilId: oldCursor?.backfillUntilId });
     }
-    if (remainingTotal !== null) remainingTotal -= added;
   }
 
   const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
@@ -321,20 +424,33 @@ export async function prepareXTickerCollection(
     } : post);
   }
   const rawPosts = [...merged.values()].sort((left, right) => right.postedAt.localeCompare(left.postedAt));
-  const canReusePreviousAnalysis = previous?.analysisModel === analysisModel;
+  const canReusePreviousAnalysis = previous?.analysisModel === analysisModel
+    && previous?.analysisPromptVersion === SOCIAL_ANALYSIS_PROMPT_VERSION;
   const previousPosts = new Map((canReusePreviousAnalysis ? previous?.posts.filter((post) => post.analyzed !== false) : [])?.map((post) => [post.id, post]) ?? []);
+  const postsToAnalyze = rawPosts.filter((post) => !previousPosts.has(post.id));
   return {
     analysisModel,
+    analysisPromptVersion: SOCIAL_ANALYSIS_PROMPT_VERSION,
     periodDays: previous?.periodDays ?? 7,
     accounts: previous?.accounts ?? [],
     tickerPeriodDays: lookbackDays,
     tickers: cursors,
     rawPosts,
-    postsToAnalyze: rawPosts.filter((post) => !previousPosts.has(post.id)),
+    postsToAnalyze,
     reusedAnalysis: rawPosts.flatMap((post) => {
       const previousPost = previousPosts.get(post.id);
       return previousPost ? [{ id: post.id, mentions: previousPost.mentions, translationKo: previousPost.translationKo ?? "" }] : [];
     }),
+    collectionWarnings,
+    collectionMetrics: {
+      apiCalls,
+      targetsAttempted,
+      targetsSucceeded,
+      targetsFailed,
+      fetchedPosts: fetchedPostCount,
+      reusedAnalyses: rawPosts.filter((post) => previousPosts.has(post.id)).length,
+      pendingAnalyses: postsToAnalyze.length,
+    },
   };
 }
 
@@ -357,6 +473,7 @@ export function finalizeXCollection(
   });
   return {
     analysisModel: prepared.analysisModel,
+    analysisPromptVersion: prepared.analysisPromptVersion,
     periodDays: prepared.periodDays,
     accounts: prepared.accounts,
     tickerPeriodDays: prepared.tickerPeriodDays,
@@ -364,6 +481,8 @@ export function finalizeXCollection(
     posts,
     companies: aggregateMentions(posts),
     analyzedPostCount: posts.filter((post) => post.analyzed !== false).length,
+    collectionWarnings: prepared.collectionWarnings,
+    collectionMetrics: { ...prepared.collectionMetrics, pendingAnalyses: 0 },
   };
 }
 
@@ -383,6 +502,7 @@ export function finalizeXCollectionWithoutAnalysis(
   });
   return {
     analysisModel: previous?.analysisModel,
+    analysisPromptVersion: previous?.analysisPromptVersion,
     periodDays: prepared.periodDays,
     accounts: prepared.accounts,
     tickerPeriodDays: prepared.tickerPeriodDays,
@@ -390,6 +510,8 @@ export function finalizeXCollectionWithoutAnalysis(
     posts,
     companies: aggregateMentions(posts),
     analyzedPostCount: posts.filter((post) => post.analyzed !== false).length,
+    collectionWarnings: prepared.collectionWarnings,
+    collectionMetrics: prepared.collectionMetrics,
   };
 }
 

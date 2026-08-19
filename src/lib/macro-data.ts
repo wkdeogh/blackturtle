@@ -7,6 +7,7 @@ export interface MacroCollectionResult {
   series: MacroSeries[];
   warnings: string[];
   freshCount: number;
+  requestCount: number;
 }
 
 function errorMessage(error: unknown): string {
@@ -39,5 +40,10 @@ export async function collectMacroData(apiKey: string, previous: MacroSeries[] =
   if (!series.length) {
     throw new Error(`매크로 데이터를 하나도 수집하지 못했습니다. ${warnings.slice(0, 3).join(" / ")}`);
   }
-  return { series, warnings, freshCount };
+  return {
+    series,
+    warnings,
+    freshCount,
+    requestCount: fredResult.requestCount + 1 + Number(Boolean(massiveApiKey)),
+  };
 }

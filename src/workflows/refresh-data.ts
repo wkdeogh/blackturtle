@@ -1,11 +1,12 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
-import { collectAlphaVantageMarketBatch } from "@/lib/alpha-vantage-market-data";
-import { collectMarketBatch, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, type MarketBatchResult } from "@/lib/market-data";
+import { collectAlphaVantageMarketBatch, collectAlphaVantagePortfolioBatch } from "@/lib/alpha-vantage-market-data";
+import { collectMarketResearchData, collectMacroResearchData } from "@/lib/investor-research";
+import { collectMarketBatch, collectPortfolioMarketBatch, MARKET_CORE_IDS, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, MARKET_SIGNAL_IDS, type MarketBatchResult } from "@/lib/market-data";
 import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
-import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
-import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings, getXTickerMonitorSettings } from "@/lib/supabase";
-import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
-import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, RefreshTarget, SocialCollectionScope, SocialRefreshMode, TopicSummary } from "@/lib/types";
+import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, SOCIAL_ANALYSIS_PROMPT_VERSION, type PostAnalysisResult } from "@/lib/social-analysis";
+import { getInvestorResearchState, getLatestSnapshot, getMissingConfiguration, getPortfolioItems, getSupabaseAdmin, getXMonitorSettings, getXTickerMonitorSettings, recordRefreshMetric, saveMacroResearchPayload, saveMarketResearchPayload } from "@/lib/supabase";
+import { analyzeTopicsWithOpenAI, TOPIC_ANALYSIS_PROMPT_VERSION } from "@/lib/topic-analysis";
+import type { DashboardSnapshot, MacroSeries, MarketSeries, MarketSnapshot, PortfolioItem, RefreshSource, RefreshTarget, SocialCollectionScope, SocialRefreshMode, TopicSummary } from "@/lib/types";
 import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, prepareXTickerCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
 import { queueLatestComprehensiveAnalysis } from "@/workflows/comprehensive-analysis";
 import { sleep } from "workflow";
@@ -93,9 +94,10 @@ async function collectMacroAndStoreDraft(runId: string, refreshSource: "macro" |
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
 
   const collected = await collectRefreshSnapshot("macro");
-  const snapshot: DashboardSnapshot = { ...collected, refreshSource };
+  const snapshot: DashboardSnapshot = { ...collected.snapshot, refreshSource };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
+  await recordRefreshMetric(runId, "macro", collected.metrics);
   return snapshot.generatedAt;
 }
 
@@ -104,21 +106,103 @@ collectMacroAndStoreDraft.maxRetries = 0;
 
 async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_PRIMARY_IDS);
-  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_PRIMARY_IDS);
+  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_CORE_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_CORE_IDS);
   throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
+}
+
+async function collectSignalMarketData(): Promise<MarketBatchResult> {
+  "use step";
+  try {
+    if (process.env.TWELVE_DATA_API_KEY) return await collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_SIGNAL_IDS);
+    if (process.env.ALPHA_VANTAGE_API_KEY) return await collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_SIGNAL_IDS);
+    throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
+  } catch (error) {
+    return { provider: process.env.TWELVE_DATA_API_KEY ? "Twelve Data" : "Alpha Vantage", series: [], warnings: [`시장 내부 신호: 이전 값 유지 · ${refreshErrorMessage(error)}`] };
+  }
 }
 
 async function collectCountryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_COUNTRY_IDS);
-  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_COUNTRY_IDS);
-  throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
+  try {
+    if (process.env.TWELVE_DATA_API_KEY) return await collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_COUNTRY_IDS);
+    if (process.env.ALPHA_VANTAGE_API_KEY) return await collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_COUNTRY_IDS);
+    throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
+  } catch (error) {
+    return { provider: process.env.TWELVE_DATA_API_KEY ? "Twelve Data" : "Alpha Vantage", series: [], warnings: [`국가 ETF: 이전 값 유지 · ${refreshErrorMessage(error)}`] };
+  }
+}
+
+async function collectPortfolioMarketData(tickers: string[]): Promise<MarketBatchResult> {
+  "use step";
+  try {
+    if (process.env.TWELVE_DATA_API_KEY) return await collectPortfolioMarketBatch(process.env.TWELVE_DATA_API_KEY, tickers);
+    if (process.env.ALPHA_VANTAGE_API_KEY) return await collectAlphaVantagePortfolioBatch(process.env.ALPHA_VANTAGE_API_KEY, tickers);
+    return { provider: "Twelve Data", series: [], warnings: ["시장 데이터 API 키가 없어 관심종목 가격을 갱신하지 못했습니다."] };
+  } catch (error) {
+    return { provider: process.env.TWELVE_DATA_API_KEY ? "Twelve Data" : "Alpha Vantage", series: [], warnings: [`관심종목 가격: 이전 값 유지 · ${refreshErrorMessage(error)}`] };
+  }
 }
 
 // 무료 플랜의 분당 크레딧을 소진하는 단계라 동일 요청을 자동 반복하지 않는다.
 collectPrimaryMarketData.maxRetries = 0;
+collectSignalMarketData.maxRetries = 0;
 collectCountryMarketData.maxRetries = 0;
+collectPortfolioMarketData.maxRetries = 0;
+
+function combineMarketBatches(...batches: MarketBatchResult[]): MarketBatchResult {
+  const provider = batches.find((batch) => batch.series.length)?.provider ?? batches[0]?.provider ?? "Twelve Data";
+  const byId = new Map<string, MarketSeries>();
+  for (const batch of batches) {
+    for (const series of batch.series) byId.set(series.id, series);
+  }
+  return {
+    provider,
+    series: [...byId.values()],
+    warnings: [...new Set(batches.flatMap((batch) => batch.warnings))],
+  };
+}
+
+async function collectMacroResearch(runId: string) {
+  "use step";
+  const previous = (await getInvestorResearchState()).macro;
+  const result = await collectMacroResearchData(process.env.FRED_API_KEY!, process.env.EIA_API_KEY, previous);
+  const { metrics, ...payload } = result;
+  await saveMacroResearchPayload(payload);
+  await recordRefreshMetric(runId, "macro_research", metrics);
+}
+
+// 보조 리서치 소스는 각 수집기 내부에서 부분 실패를 이전 값으로 복구한다.
+collectMacroResearch.maxRetries = 0;
+
+async function loadPortfolio(): Promise<PortfolioItem[]> {
+  "use step";
+  return (await getPortfolioItems()).items;
+}
+
+async function collectAndStoreMarketResearch(
+  runId: string,
+  portfolioItems: PortfolioItem[],
+  prices: MarketSeries[],
+  priceWarnings: string[],
+) {
+  "use step";
+  const previous = (await getInvestorResearchState()).market;
+  const result = await collectMarketResearchData(
+    portfolioItems,
+    prices,
+    priceWarnings,
+    process.env.ALPHA_VANTAGE_API_KEY,
+    process.env.SEC_USER_AGENT,
+    previous,
+  );
+  const { metrics, ...payload } = result;
+  await saveMarketResearchPayload(payload);
+  await recordRefreshMetric(runId, "market_research", metrics);
+}
+
+// SEC·실적 일정의 일시 오류 때문에 가격 스냅샷 전체를 재호출하지 않는다.
+collectAndStoreMarketResearch.maxRetries = 0;
 
 async function getRefreshDraft(runId: string): Promise<DashboardSnapshot | null> {
   const supabase = getSupabaseAdmin();
@@ -137,7 +221,7 @@ async function storeMarketDraft(
   "use step";
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
-  const stored = refreshSource === "all" ? await getRefreshDraft(runId) : null;
+  const stored = await getRefreshDraft(runId);
   const previous = stored ? null : await getLatestSnapshot();
   const base = stored ?? previous?.payload;
   const generatedAt = new Date().toISOString();
@@ -166,7 +250,11 @@ async function storeMarketDraft(
       peakWindowYears: 3,
       series: mergeSeries(base?.market?.series, primary.series.filter((series) => series.group === "market"), MARKET_PRIMARY_IDS),
       countryEtfs: mergeSeries(base?.market?.countryEtfs, countries.series.filter((series) => series.group === "country"), MARKET_COUNTRY_IDS),
-      warnings: [...primary.warnings, ...countries.warnings],
+      warnings: [...new Set([
+        ...(stored?.market?.warnings ?? []).filter((warning) => !warning.includes("아직 수집 중")),
+        ...primary.warnings,
+        ...countries.warnings,
+      ])],
     },
     social: base?.social ?? {
       periodDays: 7,
@@ -178,6 +266,12 @@ async function storeMarketDraft(
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`시장 데이터 임시 저장 실패: ${error.message}`);
+  await recordRefreshMetric(runId, `market_${primary.series[0]?.id ?? countries.series[0]?.id ?? "batch"}`, {
+    provider: primary.provider,
+    requestedSeries: primary.series.length + primary.warnings.length + countries.series.length + countries.warnings.length,
+    storedSeries: primary.series.length + countries.series.length,
+    warnings: primary.warnings.length + countries.warnings.length,
+  });
   return generatedAt;
 }
 
@@ -270,6 +364,7 @@ async function loadStoredSocialPosts(scope: SocialCollectionScope = "all"): Prom
     previousSocial: previous.payload.social,
     prepared: {
       analysisModel,
+      analysisPromptVersion: SOCIAL_ANALYSIS_PROMPT_VERSION,
       periodDays: previous.payload.social.periodDays,
       accounts: previous.payload.social.accounts,
       rawPosts,
@@ -277,6 +372,16 @@ async function loadStoredSocialPosts(scope: SocialCollectionScope = "all"): Prom
       reusedAnalysis: previous.payload.social.posts.flatMap((post) => !isPostInScope(post, scope)
         ? [{ id: post.id, mentions: post.mentions, translationKo: post.translationKo ?? "" }]
         : []),
+      collectionWarnings: previous.payload.social.collectionWarnings ?? [],
+      collectionMetrics: previous.payload.social.collectionMetrics ?? {
+        apiCalls: 0,
+        targetsAttempted: 0,
+        targetsSucceeded: 0,
+        targetsFailed: 0,
+        fetchedPosts: 0,
+        reusedAnalyses: 0,
+        pendingAnalyses: rawPosts.filter((post) => isPostInScope(post, scope)).length,
+      },
       tickerPeriodDays: previous.payload.social.tickerPeriodDays,
       tickers: previous.payload.social.tickers,
     },
@@ -340,6 +445,7 @@ async function storeSocialDraft(
     social: {
       ...social,
       topicModel: topicResult.model,
+      topicPromptVersion: TOPIC_ANALYSIS_PROMPT_VERSION,
       topicSummaryError: topicResult.error,
       topicSummaryStale: false,
       topics: mergeScopedTopics(context, topicResult.topics),
@@ -347,6 +453,17 @@ async function storeSocialDraft(
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`수집 결과 임시 저장 실패: ${error.message}`);
+  await recordRefreshMetric(runId, "openai_social", {
+    model: context.prepared.analysisModel,
+    promptVersion: context.prepared.analysisPromptVersion,
+    analyzedPosts: analysis.length,
+    reusedAnalyses: context.prepared.reusedAnalysis.length,
+    batches: Math.ceil(context.prepared.postsToAnalyze.length / OPENAI_BATCH_SIZE),
+    topicModel: topicResult.model,
+    topicPromptVersion: TOPIC_ANALYSIS_PROMPT_VERSION,
+    topics: topicResult.topics.length,
+    topicError: Boolean(topicResult.error),
+  });
 }
 
 async function storeSocialCollectionDraft(runId: string, context: SocialWorkflowContext) {
@@ -374,6 +491,7 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
     social: {
       ...social,
       topicModel: context.previousSocial?.topicModel,
+      topicPromptVersion: context.previousSocial?.topicPromptVersion,
       topicSummaryError: context.previousSocial?.topicSummaryError,
       topicSummaryStale: true,
       topics: context.previousSocial?.topics,
@@ -381,6 +499,7 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
   if (error) throw new Error(`X 수집 결과 임시 저장 실패: ${error.message}`);
+  await recordRefreshMetric(runId, "x_collection", context.prepared.collectionMetrics);
 }
 
 async function publishRefresh(runId: string) {
@@ -398,14 +517,6 @@ async function recoverDraftOrFail(runId: string, message: string): Promise<boole
   const { data, error } = await supabase.rpc("recover_refresh_draft_or_fail", { p_run_id: runId, p_error: message });
   if (error) throw new Error(`갱신 복구 상태 저장 오류: ${error.message}`);
   return Boolean(data);
-}
-
-async function failRefreshRun(runId: string, message: string): Promise<void> {
-  "use step";
-  const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
-  const { error } = await supabase.rpc("fail_refresh", { p_run_id: runId, p_error: message });
-  if (error) throw new Error(`갱신 실패 상태 저장 오류: ${error.message}`);
 }
 
 export async function refreshDataWorkflow(
@@ -426,29 +537,63 @@ export async function refreshDataWorkflow(
       if (targets.has("macro")) {
         stage = "선택 갱신 · 매크로 지표 수집";
         generatedAt = await collectMacroAndStoreDraft(runId, "all");
+        stage = "선택 갱신 · 경제 일정·원유 수급·선물 포지셔닝";
+        await collectMacroResearch(runId);
         await setRefreshStage(runId, "collecting");
       }
 
       if (targets.has("market")) {
         stage = "선택 갱신 · 주요 시장지수 수집";
-        const primary = await collectPrimaryMarketData();
-        await storeMarketDraft(runId, primary, {
-          provider: primary.provider,
+        const core = await collectPrimaryMarketData();
+        await storeMarketDraft(runId, core, {
+          provider: core.provider,
           series: [],
-          warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+          warnings: ["시장 내부 신호와 국가 ETF는 아직 수집 중입니다."],
         }, "all");
         await setRefreshStage(runId, "collecting");
-        if (primary.provider === "Twelve Data") {
+        if (core.provider === "Twelve Data") {
           stage = "선택 갱신 · 무료 API 호출 한도 대기";
           await sleep("61s");
         } else {
           stage = "선택 갱신 · 무료 API 호출 간격 대기";
           await sleep("2s");
         }
+        stage = "선택 갱신 · 시장 폭·신용·위험선호 신호 수집";
+        const signal = await collectSignalMarketData();
+        const primary = combineMarketBatches(core, signal);
+        await storeMarketDraft(runId, primary, {
+          provider: primary.provider,
+          series: [],
+          warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+        }, "all");
+        await setRefreshStage(runId, "collecting");
+        if (primary.provider === "Twelve Data") await sleep("61s");
+        else await sleep("2s");
         stage = "선택 갱신 · 국가 ETF 수집";
         const countries = await collectCountryMarketData();
         generatedAt = await storeMarketDraft(runId, primary, countries, "all");
         await setRefreshStage(runId, "collecting");
+
+        const portfolioItems = await loadPortfolio();
+        const portfolioTickers = portfolioItems.filter((item) => item.enabled).map((item) => item.ticker);
+        const reusablePrices = [...primary.series, ...countries.series].filter((series) => portfolioTickers.includes(series.symbol));
+        const reusableSymbols = new Set(reusablePrices.map((series) => series.symbol));
+        const portfolioFetchTickers = portfolioTickers.filter((ticker) => !reusableSymbols.has(ticker));
+        const portfolioBatches: MarketBatchResult[] = [];
+        for (let index = 0; index < portfolioFetchTickers.length; index += 8) {
+          if (primary.provider === "Twelve Data") {
+            stage = "선택 갱신 · 관심종목 호출 한도 대기";
+            await sleep("61s");
+          }
+          stage = `선택 갱신 · 관심종목 가격 ${Math.floor(index / 8) + 1}/${Math.ceil(portfolioFetchTickers.length / 8)}`;
+          portfolioBatches.push(await collectPortfolioMarketData(portfolioFetchTickers.slice(index, index + 8)));
+        }
+        const portfolio = combineMarketBatches(
+          { provider: primary.provider, series: reusablePrices, warnings: [] },
+          ...portfolioBatches,
+        );
+        stage = "선택 갱신 · 관심종목 공시·실적 일정";
+        await collectAndStoreMarketResearch(runId, portfolioItems, portfolio.series, portfolio.warnings);
       }
 
       if (targets.has("social")) {
@@ -477,27 +622,62 @@ export async function refreshDataWorkflow(
     } else if (source === "macro") {
       stage = "매크로 지표 수집";
       generatedAt = await collectMacroAndStoreDraft(runId);
+      stage = "경제 일정·원유 수급·선물 포지셔닝";
+      await collectMacroResearch(runId);
     } else if (source === "market") {
       stage = "주요 시장지수 수집";
-      const primary = await collectPrimaryMarketData();
+      const core = await collectPrimaryMarketData();
       stage = "주요 시장지수 우선 저장";
-      await storeMarketDraft(runId, primary, {
-        provider: primary.provider,
+      await storeMarketDraft(runId, core, {
+        provider: core.provider,
         series: [],
-        warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+        warnings: ["시장 내부 신호와 국가 ETF는 아직 수집 중입니다."],
       });
       await setRefreshStage(runId, "collecting");
-      if (primary.provider === "Twelve Data") {
+      if (core.provider === "Twelve Data") {
         stage = "무료 API 호출 한도 대기";
         await sleep("61s");
       } else {
         stage = "무료 API 호출 간격 대기";
         await sleep("2s");
       }
+      stage = "시장 폭·신용·위험선호 신호 수집";
+      const signal = await collectSignalMarketData();
+      const primary = combineMarketBatches(core, signal);
+      await storeMarketDraft(runId, primary, {
+        provider: primary.provider,
+        series: [],
+        warnings: ["국가 ETF 비교 데이터는 아직 수집 중입니다."],
+      });
+      await setRefreshStage(runId, "collecting");
+      if (primary.provider === "Twelve Data") await sleep("61s");
+      else await sleep("2s");
       stage = "국가 ETF 수집";
       const countries = await collectCountryMarketData();
       stage = "시장 데이터 임시 저장";
       generatedAt = await storeMarketDraft(runId, primary, countries);
+      await setRefreshStage(runId, "collecting");
+
+      const portfolioItems = await loadPortfolio();
+      const portfolioTickers = portfolioItems.filter((item) => item.enabled).map((item) => item.ticker);
+      const reusablePrices = [...primary.series, ...countries.series].filter((series) => portfolioTickers.includes(series.symbol));
+      const reusableSymbols = new Set(reusablePrices.map((series) => series.symbol));
+      const portfolioFetchTickers = portfolioTickers.filter((ticker) => !reusableSymbols.has(ticker));
+      const portfolioBatches: MarketBatchResult[] = [];
+      for (let index = 0; index < portfolioFetchTickers.length; index += 8) {
+        if (primary.provider === "Twelve Data") {
+          stage = "관심종목 호출 한도 대기";
+          await sleep("61s");
+        }
+        stage = `관심종목 가격 ${Math.floor(index / 8) + 1}/${Math.ceil(portfolioFetchTickers.length / 8)}`;
+        portfolioBatches.push(await collectPortfolioMarketData(portfolioFetchTickers.slice(index, index + 8)));
+      }
+      const portfolio = combineMarketBatches(
+        { provider: primary.provider, series: reusablePrices, warnings: [] },
+        ...portfolioBatches,
+      );
+      stage = "관심종목 공시·실적 일정";
+      await collectAndStoreMarketResearch(runId, portfolioItems, portfolio.series, portfolio.warnings);
     } else if (socialMode === "collect_only") {
       stage = "X 게시물만 수집";
       const context = await collectSocialPosts(undefined, socialScope);
@@ -542,10 +722,6 @@ export async function refreshDataWorkflow(
     return { ok: true, generatedAt, analysisQueued: false };
   } catch (error) {
     const message = `${stage}: ${refreshErrorMessage(error)}`;
-    if (source === "all") {
-      await failRefreshRun(runId, message);
-      return { ok: false, error: message };
-    }
     const recovered = await recoverDraftOrFail(runId, message);
     return recovered ? { ok: true, recovered: true } : { ok: false, error: message };
   }

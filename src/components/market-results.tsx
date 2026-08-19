@@ -1,6 +1,8 @@
 import { CountryEtfChart } from "@/components/country-etf-chart";
 import { DeferredRender } from "@/components/deferred-render";
 import { MarketChart } from "@/components/market-chart";
+import { marketTechnicals } from "@/lib/market-regime";
+import { MARKET_CORE_IDS, MARKET_SIGNAL_IDS } from "@/lib/market-data";
 import type { MarketSnapshot, MarketSeries } from "@/lib/types";
 
 function formatPrice(series: MarketSeries, value: number): string {
@@ -22,6 +24,7 @@ function chartTone(series: MarketSeries): "green" | "amber" | "blue" {
 
 function MarketCard({ series, provider }: { series: MarketSeries; provider: MarketSnapshot["provider"] }) {
   const drawdown = Math.min(series.drawdownPercent, 0);
+  const technicals = marketTechnicals(series);
   return (
     <article className="market-card">
       <header className="market-card-head">
@@ -32,6 +35,12 @@ function MarketCard({ series, provider }: { series: MarketSeries; provider: Mark
       <div className="market-stat-row">
         <div><span>{series.interval === "daily" ? "전일 대비" : "전주 대비"}</span><b className={(series.changePercent ?? 0) >= 0 ? "up" : "down"}>{series.changePercent === null ? "-" : `${series.changePercent >= 0 ? "+" : ""}${series.changePercent.toFixed(2)}%`}</b></div>
         <div><span>최근 3년 고점 대비</span><b className={drawdown < -10 ? "down" : ""}>{drawdown.toFixed(2)}%</b></div>
+      </div>
+      <div className="technical-strip">
+        <span>1M <b className={(technicals.oneMonth ?? 0) >= 0 ? "up" : "down"}>{technicals.oneMonth === null ? "-" : `${technicals.oneMonth > 0 ? "+" : ""}${technicals.oneMonth.toFixed(1)}%`}</b></span>
+        <span>3M <b className={(technicals.threeMonths ?? 0) >= 0 ? "up" : "down"}>{technicals.threeMonths === null ? "-" : `${technicals.threeMonths > 0 ? "+" : ""}${technicals.threeMonths.toFixed(1)}%`}</b></span>
+        <span>20D 변동성 <b>{technicals.realizedVolatility20D === null ? "-" : `${technicals.realizedVolatility20D.toFixed(1)}%`}</b></span>
+        <span>200D <b className={technicals.above200Day === true ? "up" : technicals.above200Day === false ? "down" : ""}>{technicals.above200Day === null ? "-" : technicals.above200Day ? "위" : "아래"}</b></span>
       </div>
       <DeferredRender className="deferred-chart" minHeight={225}>
         <MarketChart points={series.points} decimals={series.decimals} currency={series.currency} tone={chartTone(series)} />
@@ -45,13 +54,16 @@ function MarketCard({ series, provider }: { series: MarketSeries; provider: Mark
 }
 
 export function MarketResults({ market }: { market: MarketSnapshot }) {
+  const core = MARKET_CORE_IDS.flatMap((id) => market.series.find((series) => series.id === id) ?? []);
+  const signals = MARKET_SIGNAL_IDS.flatMap((id) => market.series.find((series) => series.id === id) ?? []);
   return (
     <>
       {market.warnings.length ? <aside className="market-warning" role="status"><strong>일부 지수는 이번 갱신에서 제외됐습니다.</strong>{market.warnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
       <section className="section-block market-section">
         <div className="section-title"><div><p className="kicker">MARKET PRICES</p><h2>주요 시장</h2></div><p>낙폭은 최근 3년 종가 고점 기준 · {market.provider}</p></div>
-        <div className="market-grid stagger-grid">{market.series.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div>
+        <div className="market-grid stagger-grid">{core.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div>
       </section>
+      {signals.length ? <details className="market-signal-details"><summary><div><p className="kicker">MARKET INTERNAL INPUTS</p><strong>시장 폭·신용·경기민감 원자료</strong><small>RSP · IWM · HYG · IEF · LQD · XLY · XLP</small></div><span>펼쳐보기</span></summary><div className="market-grid stagger-grid">{signals.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div></details> : null}
       <section className="section-block country-section">
         <div className="section-title"><div><p className="kicker">COUNTRY ETF COMPARISON</p><h2>국가 ETF 비교</h2></div><p>브라질 · 인도 · 베트남 · 일본</p></div>
         <div className="country-chart-card"><DeferredRender className="deferred-chart" minHeight={390}><CountryEtfChart series={market.countryEtfs} /></DeferredRender></div>

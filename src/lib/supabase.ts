@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, DashboardSnapshot, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
+import { parseDashboardSnapshot } from "@/lib/snapshot-schema";
+import type { ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, InvestorResearchState, MacroResearchPayload, MarketResearchPayload, PortfolioItem, RefreshMetricsRecord, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -60,7 +61,7 @@ export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
   return {
     id: data.id as string,
     createdAt: data.created_at as string,
-    payload: data.payload as DashboardSnapshot,
+    payload: parseDashboardSnapshot(data.payload),
   };
 }
 
@@ -137,7 +138,7 @@ export async function getSnapshotHistory(limit = 100): Promise<StoredSnapshot[]>
   return (data ?? []).map((row) => ({
     id: row.id as string,
     createdAt: row.created_at as string,
-    payload: row.payload as DashboardSnapshot,
+    payload: parseDashboardSnapshot(row.payload, `히스토리 스냅샷 ${row.id as string}`),
   }));
 }
 
@@ -156,7 +157,155 @@ export async function getSnapshotById(id: string): Promise<StoredSnapshot | null
   return {
     id: data.id as string,
     createdAt: data.created_at as string,
-    payload: data.payload as DashboardSnapshot,
+    payload: parseDashboardSnapshot(data.payload, `히스토리 스냅샷 ${data.id as string}`),
+  };
+}
+
+const EMPTY_MACRO_RESEARCH: MacroResearchPayload = {
+  economicEvents: [],
+  energy: [],
+  positioning: [],
+  statuses: [],
+  warnings: [],
+};
+
+const EMPTY_MARKET_RESEARCH: MarketResearchPayload = {
+  portfolioPrices: [],
+  secFilings: [],
+  fundamentals: [],
+  earningsEvents: [],
+  statuses: [],
+  warnings: [],
+};
+
+function researchPayload<T extends object>(value: unknown, fallback: T): T {
+  return value && typeof value === "object" && !Array.isArray(value) ? { ...fallback, ...value } as T : fallback;
+}
+
+export async function getInvestorResearchState(): Promise<InvestorResearchState> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, macro: EMPTY_MACRO_RESEARCH, market: EMPTY_MARKET_RESEARCH };
+  const { data, error } = await supabase
+    .from("investor_research_state")
+    .select("macro_payload, market_payload")
+    .eq("id", "primary")
+    .maybeSingle();
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return { migrationReady: false, macro: EMPTY_MACRO_RESEARCH, market: EMPTY_MARKET_RESEARCH };
+    }
+    throw new Error(`투자 리서치 데이터 조회 실패: ${error.message}`);
+  }
+  return {
+    migrationReady: true,
+    macro: researchPayload(data?.macro_payload, EMPTY_MACRO_RESEARCH),
+    market: researchPayload(data?.market_payload, EMPTY_MARKET_RESEARCH),
+  };
+}
+
+export async function saveMacroResearchPayload(payload: MacroResearchPayload): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { error } = await supabase.from("investor_research_state").upsert({
+    id: "primary",
+    macro_payload: payload,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "id" });
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return false;
+    throw new Error(`매크로 리서치 저장 실패: ${error.message}`);
+  }
+  return true;
+}
+
+export async function saveMarketResearchPayload(payload: MarketResearchPayload): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const { error } = await supabase.from("investor_research_state").upsert({
+    id: "primary",
+    market_payload: payload,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "id" });
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return false;
+    throw new Error(`시장 리서치 저장 실패: ${error.message}`);
+  }
+  return true;
+}
+
+function mapPortfolioItem(row: Record<string, unknown>): PortfolioItem {
+  return {
+    id: row.id as string,
+    ticker: row.ticker as string,
+    companyName: (row.company_name as string | null | undefined) ?? "",
+    kind: row.kind === "holding" ? "holding" : "watchlist",
+    quantity: Number(row.quantity ?? 0),
+    averageCost: row.average_cost === null || row.average_cost === undefined ? null : Number(row.average_cost),
+    targetWeight: row.target_weight === null || row.target_weight === undefined ? null : Number(row.target_weight),
+    sector: (row.sector as string | null | undefined) ?? "",
+    currency: row.currency === "KRW" ? "KRW" : "USD",
+    thesis: (row.thesis as string | null | undefined) ?? "",
+    invalidation: (row.invalidation as string | null | undefined) ?? "",
+    notes: (row.notes as string | null | undefined) ?? "",
+    enabled: row.enabled !== false,
+    position: Number(row.position ?? 0),
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+export async function getPortfolioItems(): Promise<{ migrationReady: boolean; items: PortfolioItem[] }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, items: [] };
+  const { data, error } = await supabase
+    .from("portfolio_items")
+    .select("id, ticker, company_name, kind, quantity, average_cost, target_weight, sector, currency, thesis, invalidation, notes, enabled, position, created_at, updated_at")
+    .order("position")
+    .order("ticker");
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return { migrationReady: false, items: [] };
+    throw new Error(`포트폴리오 조회 실패: ${error.message}`);
+  }
+  return { migrationReady: true, items: (data ?? []).map((row) => mapPortfolioItem(row)) };
+}
+
+export async function recordRefreshMetric(runId: string, component: string, metrics: Record<string, unknown>): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { error } = await supabase.rpc("record_refresh_metric", {
+    p_run_id: runId,
+    p_component: component,
+    p_metrics: metrics,
+  });
+  if (error && error.code !== "PGRST202" && error.code !== "42883") {
+    throw new Error(`갱신 사용량 저장 실패: ${error.message}`);
+  }
+}
+
+export async function getRefreshMetrics(limit = 12): Promise<{ migrationReady: boolean; records: RefreshMetricsRecord[] }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, records: [] };
+  const { data, error } = await supabase
+    .from("refresh_metrics")
+    .select("refresh_run_id, metrics, refresh_runs(source, started_at, finished_at)")
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, Math.min(30, Math.trunc(limit))));
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return { migrationReady: false, records: [] };
+    throw new Error(`갱신 사용량 조회 실패: ${error.message}`);
+  }
+  return {
+    migrationReady: true,
+    records: (data ?? []).map((row) => {
+      const joined = (Array.isArray(row.refresh_runs) ? row.refresh_runs[0] : row.refresh_runs) as Record<string, unknown> | null;
+      return {
+        refreshRunId: row.refresh_run_id as string,
+        source: joined?.source === "macro" || joined?.source === "market" || joined?.source === "social" || joined?.source === "all" ? joined.source : null,
+        startedAt: (joined?.started_at as string | undefined) ?? "",
+        finishedAt: (joined?.finished_at as string | null | undefined) ?? null,
+        metrics: researchPayload(row.metrics, {}),
+      };
+    }),
   };
 }
 

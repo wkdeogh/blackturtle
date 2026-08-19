@@ -117,11 +117,15 @@ export interface XAccountCursor {
   username: string;
   userId: string;
   newestPostId?: string;
+  pendingNewestPostId?: string;
+  backfillUntilId?: string;
 }
 
 export interface XTickerCursor {
   ticker: string;
   newestPostId?: string;
+  pendingNewestPostId?: string;
+  backfillUntilId?: string;
 }
 
 export interface DashboardSnapshot {
@@ -142,10 +146,22 @@ export interface DashboardSnapshot {
   market?: MarketSnapshot;
   social: {
     analysisModel?: string;
+    analysisPromptVersion?: string;
     topicModel?: string;
+    topicPromptVersion?: string;
     topicSummaryError?: string;
     topicSummaryStale?: boolean;
     topics?: TopicSummary[];
+    collectionWarnings?: string[];
+    collectionMetrics?: {
+      apiCalls: number;
+      targetsAttempted: number;
+      targetsSucceeded: number;
+      targetsFailed: number;
+      fetchedPosts: number;
+      reusedAnalyses: number;
+      pendingAnalyses: number;
+    };
     periodDays: number;
     accounts: XAccountCursor[];
     tickerPeriodDays?: number;
@@ -154,6 +170,157 @@ export interface DashboardSnapshot {
     companies: MentionSummary[];
     analyzedPostCount: number;
   };
+}
+
+export type DataFreshnessState = "fresh" | "stale" | "error" | "not_configured";
+
+export interface DataSourceStatus {
+  source: string;
+  label: string;
+  state: DataFreshnessState;
+  updatedAt?: string;
+  observationDate?: string;
+  message?: string;
+}
+
+export interface EconomicCalendarEvent {
+  id: string;
+  date: string;
+  name: string;
+  category: "inflation" | "employment" | "growth" | "fed" | "other";
+  source: "FRED";
+}
+
+export interface ResearchTimeSeries {
+  id: string;
+  label: string;
+  unit: string;
+  current: number;
+  previous: number | null;
+  change: number | null;
+  observationDate: string;
+  points: MacroPoint[];
+}
+
+export interface CftcPositioningSeries {
+  id: string;
+  label: string;
+  contractCode: string;
+  observationDate: string;
+  netNonCommercial: number;
+  previousNet: number | null;
+  openInterest: number;
+  netPercentOfOpenInterest: number | null;
+  percentile3Y: number | null;
+  points: Array<{ date: string; net: number; openInterest: number }>;
+}
+
+export interface MacroResearchPayload {
+  updatedAt?: string;
+  economicEvents: EconomicCalendarEvent[];
+  energy: ResearchTimeSeries[];
+  positioning: CftcPositioningSeries[];
+  statuses: DataSourceStatus[];
+  warnings: string[];
+}
+
+export interface PortfolioPrice {
+  ticker: string;
+  currency: string;
+  current: number;
+  previous: number | null;
+  changePercent: number | null;
+  observationDate: string;
+  peakValue: number;
+  peakDate: string;
+  drawdownPercent: number;
+  points: MarketPoint[];
+}
+
+export interface SecFiling {
+  id: string;
+  ticker: string;
+  companyName: string;
+  form: string;
+  filedAt: string;
+  reportDate?: string;
+  primaryDocument: string;
+  url: string;
+  importance: "high" | "medium" | "low";
+}
+
+export interface CompanyFundamentalSnapshot {
+  ticker: string;
+  companyName: string;
+  fiscalYearEnd: string;
+  filedAt: string;
+  currency: "USD";
+  revenue: number | null;
+  revenueGrowthPercent: number | null;
+  operatingIncome: number | null;
+  operatingMarginPercent: number | null;
+  netIncome: number | null;
+  operatingCashFlow: number | null;
+  capitalExpenditure: number | null;
+  freeCashFlow: number | null;
+  cash: number | null;
+  longTermDebt: number | null;
+  sourceUrl: string;
+}
+
+export interface EarningsCalendarEvent {
+  ticker: string;
+  companyName?: string;
+  reportDate: string;
+  fiscalDateEnding?: string;
+  estimate?: number | null;
+  currency?: string;
+  source: "Alpha Vantage";
+}
+
+export interface MarketResearchPayload {
+  updatedAt?: string;
+  portfolioPrices: PortfolioPrice[];
+  secFilings: SecFiling[];
+  fundamentals: CompanyFundamentalSnapshot[];
+  earningsEvents: EarningsCalendarEvent[];
+  statuses: DataSourceStatus[];
+  warnings: string[];
+}
+
+export interface InvestorResearchState {
+  migrationReady: boolean;
+  macro: MacroResearchPayload;
+  market: MarketResearchPayload;
+}
+
+export type PortfolioItemKind = "holding" | "watchlist";
+
+export interface PortfolioItem {
+  id: string;
+  ticker: string;
+  companyName: string;
+  kind: PortfolioItemKind;
+  quantity: number;
+  averageCost: number | null;
+  targetWeight: number | null;
+  sector: string;
+  currency: "USD" | "KRW";
+  thesis: string;
+  invalidation: string;
+  notes: string;
+  enabled: boolean;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RefreshMetricsRecord {
+  refreshRunId: string;
+  source: RefreshSource | null;
+  startedAt: string;
+  finishedAt: string | null;
+  metrics: Record<string, unknown>;
 }
 
 export interface StoredSnapshot {

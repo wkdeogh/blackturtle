@@ -1,5 +1,6 @@
 import type { CompanyMention, MentionSummary, Sentiment, SocialPost } from "@/lib/types";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { readJsonResponse } from "@/lib/http-json";
 import { OPENAI_REASONING_EFFORT } from "@/lib/openai-config";
 
 type RawPost = Omit<SocialPost, "mentions" | "translationKo" | "analyzed">;
@@ -36,6 +37,7 @@ interface AnalysisPayload {
 }
 
 export const OPENAI_BATCH_SIZE = 5;
+export const SOCIAL_ANALYSIS_PROMPT_VERSION = "2026-08-19.1";
 
 const ANALYSIS_ITEM_SCHEMA = {
   type: "object",
@@ -158,7 +160,7 @@ async function analyzeBatchOnce(posts: RawPost[], apiKey: string, model: string)
     cache: "no-store",
   }, 240_000, `OpenAI ${model} 분석`);
 
-  const body = (await response.json()) as OpenAIResponse;
+  const body = await readJsonResponse<OpenAIResponse>(response, `OpenAI ${model} 분석`);
   if (!response.ok) {
     throw new Error(`OpenAI 분석 실패 (${response.status}): ${(body.error?.message ?? response.statusText).slice(0, 300)}`);
   }

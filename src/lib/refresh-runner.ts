@@ -27,7 +27,7 @@ export function refreshErrorMessage(error: unknown): string {
   return "알 수 없는 갱신 오류가 발생했습니다.";
 }
 
-export async function collectRefreshSnapshot(source: RefreshSource): Promise<DashboardSnapshot> {
+export async function collectRefreshSnapshot(source: RefreshSource): Promise<{ snapshot: DashboardSnapshot; metrics: Record<string, unknown> }> {
   const missing = getMissingConfiguration(source);
   if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
 
@@ -44,12 +44,19 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
     companies: [],
     analyzedPostCount: 0,
   };
+  let metrics: Record<string, unknown> = {};
 
   if (source === "macro") {
     const result = await collectMacroData(process.env.FRED_API_KEY!, previous?.payload.macro, process.env.MASSIVE_API_KEY);
     macro = result.series;
     macroWarnings = result.warnings;
     if (result.freshCount > 0) macroUpdatedAt = now;
+    metrics = {
+      apiRequests: result.requestCount,
+      seriesStored: result.series.length,
+      seriesFresh: result.freshCount,
+      warnings: result.warnings.length,
+    };
   } else if (source === "social") {
     const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
     if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
@@ -63,11 +70,12 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
       process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL,
       previous?.payload.social,
     );
+    metrics = social.collectionMetrics ?? {};
   } else {
     throw new Error("시장 데이터는 호출 제한을 지키는 지속 실행 Workflow에서만 갱신할 수 있습니다.");
   }
 
-  return {
+  return { snapshot: {
     version: 1,
     generatedAt: now,
     refreshSource: source,
@@ -84,5 +92,5 @@ export async function collectRefreshSnapshot(source: RefreshSource): Promise<Das
     macro,
     market,
     social,
-  };
+  }, metrics };
 }
