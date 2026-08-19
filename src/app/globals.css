@@ -524,7 +524,9 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .company-identity span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .sentiment-bar { height: 7px; display: flex; overflow: hidden; border-radius: 999px; background: #29322e; }
 .sentiment-bar i { display: block; height: 100%; }
-.positive { background: #4b9b75; }.neutral { background: #68736d; }.negative { background: #c6655a; }
+.sentiment-bar .positive, .legend i.positive { background: #4b9b75; }
+.sentiment-bar .neutral, .legend i.neutral { background: #68736d; }
+.sentiment-bar .negative, .legend i.negative { background: #c6655a; }
 .sentiment-counts { display: flex; gap: 12px; margin-top: 6px; color: var(--muted); font-size: 8px; }
 .sentiment-counts span:first-child { color: var(--green-2); }.sentiment-counts span:last-child { color: var(--red); }
 .total-count { text-align: right; font-family: Georgia, serif; font-size: 22px; font-weight: 500; }
