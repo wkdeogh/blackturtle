@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { reloadDashboardAfterRefresh } from "@/lib/dashboard-client-cache";
 import type { ComprehensiveAnalysisRunStatus, RefreshRunStatus } from "@/lib/types";
 
 export function GlobalRefreshIndicator() {
   const [run, setRun] = useState<RefreshRunStatus | null>(null);
   const [analysisRun, setAnalysisRun] = useState<ComprehensiveAnalysisRunStatus | null>(null);
+  const runRef = useRef<RefreshRunStatus | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -21,8 +23,13 @@ export function GlobalRefreshIndicator() {
         const analysisBody = analysisResponse.ok ? await analysisResponse.json() as { run?: ComprehensiveAnalysisRunStatus | null } : {};
         const next = refreshBody.run ?? null;
         const nextAnalysis = analysisBody.run ?? null;
+        const previous = runRef.current;
+        runRef.current = next;
         setRun(next);
         setAnalysisRun(nextAnalysis);
+        if (previous?.status === "running" && previous.id === next?.id && next.status === "success") {
+          reloadDashboardAfterRefresh(next.id);
+        }
         if (next?.status === "running" || nextAnalysis?.status === "running") timer = window.setTimeout(check, 3_000);
       } catch {
         // Page controls surface status errors; the compact global badge stays quiet.

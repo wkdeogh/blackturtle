@@ -3,6 +3,14 @@ import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Dashboard routes read immutable snapshots. Keep visited tab payloads in the
+    // browser router cache for the session; a successful refresh reloads the app.
+    staleTimes: {
+      dynamic: 86_400,
+      static: 86_400,
+    },
+  },
   async headers() {
     return [
       {

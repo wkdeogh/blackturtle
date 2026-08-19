@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { RefreshRunStatus, RefreshSource } from "@/lib/types";
 import { useRefreshJob } from "@/components/use-refresh-job";
@@ -20,14 +19,12 @@ export function RefreshButton({ source, initialRun, compact = false }: { source:
 }
 
 export function LogoutButton() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function logout() {
     setLoading(true);
     await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
+    window.location.replace("/login");
   }
 
   return <button className="text-button" type="button" onClick={logout} disabled={loading}>{loading ? "…" : "잠금"}</button>;

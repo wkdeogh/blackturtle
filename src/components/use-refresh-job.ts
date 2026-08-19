@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RefreshRunStatus, RefreshSource } from "@/lib/types";
+import { reloadDashboardAfterRefresh } from "@/lib/dashboard-client-cache";
 import { showToast } from "@/lib/toast";
 
 interface RefreshResponse {
@@ -35,10 +36,11 @@ export function useRefreshJob(source: RefreshSource, initialRun: RefreshRunStatu
         showToast(`${sourceLabel(next.source)} 갱신을 완료했습니다.`);
         if (completionTimer.current) window.clearTimeout(completionTimer.current);
         completionTimer.current = window.setTimeout(() => setRecentlyCompleted(false), 1_600);
+        reloadDashboardAfterRefresh(next.id);
       } else {
         showToast(next.error ?? `${sourceLabel(next.source)} 갱신에 실패했습니다.`, "error");
+        router.refresh();
       }
-      router.refresh();
     }
   }, [router]);
 

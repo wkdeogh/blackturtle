@@ -1,10 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,8 +22,7 @@ export function LoginForm() {
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "로그인하지 못했습니다.");
       const next = searchParams.get("next");
-      router.replace(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
-      router.refresh();
+      window.location.replace(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "로그인하지 못했습니다.");
     } finally {
