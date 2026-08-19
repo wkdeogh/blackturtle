@@ -3,10 +3,10 @@ import { collectAlphaVantageMarketBatch } from "@/lib/alpha-vantage-market-data"
 import { collectMarketBatch, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, type MarketBatchResult } from "@/lib/market-data";
 import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, type PostAnalysisResult } from "@/lib/social-analysis";
-import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
+import { getLatestSnapshot, getMissingConfiguration, getSupabaseAdmin, getXMonitorSettings, getXTickerMonitorSettings } from "@/lib/supabase";
 import { analyzeTopicsWithOpenAI } from "@/lib/topic-analysis";
-import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, RefreshTarget, SocialRefreshMode, TopicSummary } from "@/lib/types";
-import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
+import type { DashboardSnapshot, MacroSeries, MarketSnapshot, RefreshSource, RefreshTarget, SocialCollectionScope, SocialRefreshMode, TopicSummary } from "@/lib/types";
+import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, prepareXTickerCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
 import { queueLatestComprehensiveAnalysis } from "@/workflows/comprehensive-analysis";
 import { sleep } from "workflow";
 
@@ -20,6 +20,13 @@ interface SocialWorkflowContext {
   marketUpdatedAt?: string;
   socialCollectedAt?: string;
   socialAnalyzedAt?: string;
+  socialAccountCollectedAt?: string;
+  socialAccountAnalyzedAt?: string;
+  socialTickerCollectedAt?: string;
+  socialTickerAnalyzedAt?: string;
+  scope: SocialCollectionScope;
+  collectedAccounts: boolean;
+  collectedTickers: boolean;
   previousSocial?: DashboardSnapshot["social"];
   prepared: PreparedXCollection;
 }
@@ -28,6 +35,48 @@ interface TopicStepResult {
   model: string;
   topics: TopicSummary[];
   error?: string;
+}
+
+function isTickerPost(post: RawSocialPost | DashboardSnapshot["social"]["posts"][number]) {
+  return post.source === "ticker" || Boolean(post.matchedTickers?.length);
+}
+
+function isPostInScope(post: RawSocialPost | DashboardSnapshot["social"]["posts"][number], scope: SocialCollectionScope) {
+  if (scope === "all") return true;
+  return scope === "tickers" ? isTickerPost(post) : post.source !== "ticker";
+}
+
+function keepUnscopedAnalysis(
+  prepared: PreparedXCollection,
+  previous: DashboardSnapshot["social"] | undefined,
+  scope: SocialCollectionScope,
+): PreparedXCollection {
+  if (!previous || scope === "all") return prepared;
+  const reused = new Map(prepared.reusedAnalysis.map((analysis) => [analysis.id, analysis]));
+  for (const post of previous.posts) {
+    if (!isPostInScope(post, scope) && prepared.rawPosts.some((raw) => raw.id === post.id)) {
+      reused.set(post.id, { id: post.id, mentions: post.mentions, translationKo: post.translationKo ?? "" });
+    }
+  }
+  return {
+    ...prepared,
+    postsToAnalyze: prepared.postsToAnalyze.filter((post) => isPostInScope(post, scope)),
+    reusedAnalysis: [...reused.values()],
+  };
+}
+
+function mergeScopedTopics(context: SocialWorkflowContext, fresh: TopicSummary[]) {
+  if (context.scope === "all") return fresh;
+  const rawById = new Map(context.prepared.rawPosts.map((post) => [post.id, post]));
+  const preserved = (context.previousSocial?.topics ?? []).flatMap((topic) => {
+    const postIds = topic.postIds.filter((id) => {
+      const post = rawById.get(id);
+      return post ? !isPostInScope(post, context.scope) : false;
+    });
+    return postIds.length ? [{ ...topic, postIds, postCount: postIds.length }] : [];
+  });
+  return [...fresh, ...preserved]
+    .sort((left, right) => right.postCount - left.postCount || left.title.localeCompare(right.title, "ko"));
 }
 
 async function setRefreshStage(runId: string, stage: "collecting" | "saving") {
@@ -107,6 +156,10 @@ async function storeMarketDraft(
     socialUpdatedAt: base?.socialUpdatedAt,
     socialCollectedAt: base?.socialCollectedAt,
     socialAnalyzedAt: base?.socialAnalyzedAt,
+    socialAccountCollectedAt: base?.socialAccountCollectedAt,
+    socialAccountAnalyzedAt: base?.socialAccountAnalyzedAt,
+    socialTickerCollectedAt: base?.socialTickerCollectedAt,
+    socialTickerAnalyzedAt: base?.socialTickerAnalyzedAt,
     macro: base?.macro ?? [],
     market: {
       provider: primary.provider,
@@ -128,7 +181,7 @@ async function storeMarketDraft(
   return generatedAt;
 }
 
-async function collectSocialPosts(runId?: string): Promise<SocialWorkflowContext> {
+async function collectSocialPosts(runId?: string, scope: SocialCollectionScope = "accounts"): Promise<SocialWorkflowContext> {
   "use step";
   const missing = getMissingConfiguration("social", "collect_only");
   if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
@@ -136,19 +189,29 @@ async function collectSocialPosts(runId?: string): Promise<SocialWorkflowContext
   const stored = runId ? await getRefreshDraft(runId) : null;
   const previous = stored ? null : await getLatestSnapshot();
   const base = stored ?? previous?.payload;
-  const { usernames, lookbackDays, perAccountPostLimit, totalPostLimit } = await getXMonitorSettings();
-  if (!usernames.length) throw new Error("계정 설정에서 모니터링할 X 계정을 한 개 이상 저장하세요.");
-
   const analysisModel = process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_ANALYSIS_MODEL;
-  const prepared = await prepareXCollection(
-    process.env.X_BEARER_TOKEN!,
-    usernames,
-    lookbackDays,
-    perAccountPostLimit,
-    totalPostLimit,
-    analysisModel,
-    base?.social,
-  );
+  const accountSettings = scope === "tickers" ? null : await getXMonitorSettings();
+  const tickerSettings = scope === "accounts" ? null : await getXTickerMonitorSettings();
+  if (scope === "accounts" && !accountSettings?.usernames.length) throw new Error("계정 설정에서 활성 계정을 한 개 이상 선택하세요.");
+  if (scope === "tickers" && !tickerSettings?.activeTickers.length) throw new Error("티커 모니터링에서 활성 티커를 한 개 이상 선택하세요.");
+  if (scope === "all" && !accountSettings?.usernames.length && !tickerSettings?.activeTickers.length) throw new Error("활성화된 X 계정 또는 티커를 한 개 이상 설정하세요.");
+
+  let prepared: PreparedXCollection | null = null;
+  if (accountSettings?.usernames.length) {
+    prepared = await prepareXCollection(
+      process.env.X_BEARER_TOKEN!, accountSettings.usernames, accountSettings.lookbackDays,
+      accountSettings.perAccountPostLimit, accountSettings.totalPostLimit, analysisModel, base?.social,
+    );
+  }
+  if (tickerSettings?.activeTickers.length) {
+    const tickerBase = prepared ? finalizeXCollectionWithoutAnalysis(prepared, base?.social) : base?.social;
+    prepared = await prepareXTickerCollection(
+      process.env.X_BEARER_TOKEN!, tickerSettings.activeTickers, tickerSettings.lookbackDays,
+      tickerSettings.perTickerPostLimit, tickerSettings.totalPostLimit, analysisModel, tickerBase,
+    );
+  }
+  if (!prepared) throw new Error("X 수집 대상을 준비하지 못했습니다.");
+  prepared = keepUnscopedAnalysis(prepared, base?.social, scope);
   return {
     generatedAt: new Date().toISOString(),
     refreshSource: runId ? "all" : "social",
@@ -158,6 +221,13 @@ async function collectSocialPosts(runId?: string): Promise<SocialWorkflowContext
     market: base?.market,
     marketUpdatedAt: base?.marketUpdatedAt,
     socialAnalyzedAt: base?.socialAnalyzedAt ?? base?.socialUpdatedAt ?? base?.generatedAt,
+    socialAccountCollectedAt: base?.socialAccountCollectedAt,
+    socialAccountAnalyzedAt: base?.socialAccountAnalyzedAt,
+    socialTickerCollectedAt: base?.socialTickerCollectedAt,
+    socialTickerAnalyzedAt: base?.socialTickerAnalyzedAt,
+    scope,
+    collectedAccounts: Boolean(accountSettings?.usernames.length),
+    collectedTickers: Boolean(tickerSettings?.activeTickers.length),
     previousSocial: base?.social,
     prepared,
   };
@@ -166,7 +236,7 @@ async function collectSocialPosts(runId?: string): Promise<SocialWorkflowContext
 // X는 유료 호출이므로 실패 시 Workflow가 자동으로 같은 수집을 반복하지 않는다.
 collectSocialPosts.maxRetries = 0;
 
-async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
+async function loadStoredSocialPosts(scope: SocialCollectionScope = "all"): Promise<SocialWorkflowContext> {
   "use step";
   const missing = getMissingConfiguration("social", "analyze_only");
   if (missing.length) throw new Error(`설정되지 않은 환경 변수: ${missing.join(", ")}`);
@@ -192,15 +262,26 @@ async function loadStoredSocialPosts(): Promise<SocialWorkflowContext> {
     marketUpdatedAt: previous.payload.marketUpdatedAt,
     socialCollectedAt: previous.payload.socialCollectedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
     socialAnalyzedAt: previous.payload.socialAnalyzedAt ?? previous.payload.socialUpdatedAt ?? previous.payload.generatedAt,
+    socialAccountCollectedAt: previous.payload.socialAccountCollectedAt,
+    socialAccountAnalyzedAt: previous.payload.socialAccountAnalyzedAt,
+    socialTickerCollectedAt: previous.payload.socialTickerCollectedAt,
+    socialTickerAnalyzedAt: previous.payload.socialTickerAnalyzedAt,
+    scope,
     previousSocial: previous.payload.social,
     prepared: {
       analysisModel,
       periodDays: previous.payload.social.periodDays,
       accounts: previous.payload.social.accounts,
       rawPosts,
-      postsToAnalyze: rawPosts,
-      reusedAnalysis: [],
+      postsToAnalyze: rawPosts.filter((post) => isPostInScope(post, scope)),
+      reusedAnalysis: previous.payload.social.posts.flatMap((post) => !isPostInScope(post, scope)
+        ? [{ id: post.id, mentions: post.mentions, translationKo: post.translationKo ?? "" }]
+        : []),
+      tickerPeriodDays: previous.payload.social.tickerPeriodDays,
+      tickers: previous.payload.social.tickers,
     },
+    collectedAccounts: false,
+    collectedTickers: false,
   };
 }
 
@@ -250,6 +331,10 @@ async function storeSocialDraft(
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.socialCollectedAt ?? context.generatedAt,
     socialAnalyzedAt: context.generatedAt,
+    socialAccountCollectedAt: context.collectedAccounts ? context.generatedAt : context.socialAccountCollectedAt,
+    socialAccountAnalyzedAt: context.prepared.rawPosts.some((post) => isPostInScope(post, "accounts")) && (context.scope === "accounts" || context.scope === "all") ? context.generatedAt : context.socialAccountAnalyzedAt,
+    socialTickerCollectedAt: context.collectedTickers ? context.generatedAt : context.socialTickerCollectedAt,
+    socialTickerAnalyzedAt: context.prepared.rawPosts.some((post) => isPostInScope(post, "tickers")) && (context.scope === "tickers" || context.scope === "all") ? context.generatedAt : context.socialTickerAnalyzedAt,
     macro: context.macro,
     market: context.market,
     social: {
@@ -257,7 +342,7 @@ async function storeSocialDraft(
       topicModel: topicResult.model,
       topicSummaryError: topicResult.error,
       topicSummaryStale: false,
-      topics: topicResult.topics,
+      topics: mergeScopedTopics(context, topicResult.topics),
     },
   };
   const { error } = await supabase.rpc("save_refresh_draft", { p_run_id: runId, p_payload: snapshot });
@@ -280,6 +365,10 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
     socialUpdatedAt: context.generatedAt,
     socialCollectedAt: context.generatedAt,
     socialAnalyzedAt: context.socialAnalyzedAt,
+    socialAccountCollectedAt: context.collectedAccounts ? context.generatedAt : context.socialAccountCollectedAt,
+    socialAccountAnalyzedAt: context.socialAccountAnalyzedAt,
+    socialTickerCollectedAt: context.collectedTickers ? context.generatedAt : context.socialTickerCollectedAt,
+    socialTickerAnalyzedAt: context.socialTickerAnalyzedAt,
     macro: context.macro,
     market: context.market,
     social: {
@@ -325,6 +414,7 @@ export async function refreshDataWorkflow(
   socialMode: SocialRefreshMode = "collect_and_analyze",
   selectedTargets?: RefreshTarget[],
   comprehensiveModel?: string,
+  socialScope: SocialCollectionScope = "accounts",
 ) {
   "use workflow";
   let stage = "갱신 준비";
@@ -363,7 +453,7 @@ export async function refreshDataWorkflow(
 
       if (targets.has("social")) {
         stage = "선택 갱신 · X 게시물 수집";
-        const context = await collectSocialPosts(runId);
+        const context = await collectSocialPosts(runId, socialScope);
         stage = "선택 갱신 · X 원문 우선 저장";
         await storeSocialCollectionDraft(runId, context);
         await setRefreshStage(runId, "collecting");
@@ -379,7 +469,7 @@ export async function refreshDataWorkflow(
           ));
         }
         stage = "선택 갱신 · 전체 주제 요약";
-        const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
+        const topicResult = await analyzeSocialTopics(context.prepared.rawPosts.filter((post) => isPostInScope(post, context.scope)));
         stage = "선택 갱신 · 최종 결과 임시 저장";
         await storeSocialDraft(runId, context, analysis, topicResult);
         generatedAt = context.generatedAt;
@@ -410,13 +500,13 @@ export async function refreshDataWorkflow(
       generatedAt = await storeMarketDraft(runId, primary, countries);
     } else if (socialMode === "collect_only") {
       stage = "X 게시물만 수집";
-      const context = await collectSocialPosts();
+      const context = await collectSocialPosts(undefined, socialScope);
       stage = "X 원문 임시 저장";
       await storeSocialCollectionDraft(runId, context);
       generatedAt = context.generatedAt;
     } else {
       stage = socialMode === "analyze_only" ? "저장된 X 게시물 준비" : "X 게시물 수집";
-      const context = socialMode === "analyze_only" ? await loadStoredSocialPosts() : await collectSocialPosts();
+      const context = socialMode === "analyze_only" ? await loadStoredSocialPosts(socialScope) : await collectSocialPosts(undefined, socialScope);
       if (socialMode !== "analyze_only") {
         stage = "X 원문 우선 저장";
         await storeSocialCollectionDraft(runId, context);
@@ -433,7 +523,7 @@ export async function refreshDataWorkflow(
         ));
       }
       stage = "전체 주제 요약";
-      const topicResult = await analyzeSocialTopics(context.prepared.rawPosts);
+      const topicResult = await analyzeSocialTopics(context.prepared.rawPosts.filter((post) => isPostInScope(post, context.scope)));
       stage = "수집 결과 임시 저장";
       await storeSocialDraft(runId, context, analysis, topicResult);
       generatedAt = context.generatedAt;

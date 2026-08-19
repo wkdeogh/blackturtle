@@ -1,5 +1,6 @@
 import { RefreshButton } from "@/components/dashboard-actions";
 import { MarketResults } from "@/components/market-results";
+import { MarketDataSubnav } from "@/components/market-data-subnav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { formatDateTime } from "@/lib/format";
@@ -24,6 +25,7 @@ export default async function MarketPage() {
     <main className="dashboard-page">
       <SiteHeader />
       <div className="page-shell dashboard-content">
+        <MarketDataSubnav />
         <section className="dashboard-hero compact-hero">
           <div><p className="kicker">MARKET DATA</p><h1>시장지수</h1><p className="hero-copy">주요 자산과 국가 ETF의 마지막 저장 가격입니다. 페이지 조회는 API를 호출하지 않으며, 버튼을 눌렀을 때만 새 데이터를 가져옵니다.</p></div>
           <div className="refresh-panel"><span>LAST MARKET UPDATE</span><strong>{updatedAt ? formatDateTime(updatedAt) : "아직 없음"}</strong><RefreshButton source="market" initialRun={latestRun} compact /></div>

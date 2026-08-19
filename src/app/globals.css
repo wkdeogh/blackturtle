@@ -221,6 +221,32 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .settings-save-row .primary-button { min-height: 42px; font-size: 11px; }
 .settings-message { margin: 10px 0 0 !important; color: var(--green-2) !important; }
 .settings-message.error { color: var(--red) !important; }
+.ticker-setting-list { display: grid; gap: 7px; }
+.ticker-setting-row { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 11px; padding: 8px 10px 8px 12px; background: var(--subtle-bg); }
+.ticker-setting-row.disabled { opacity: .6; }
+.ticker-setting-row > label { min-width: 0; display: flex; align-items: center; gap: 11px; cursor: pointer; }
+.ticker-setting-row input { width: 17px; height: 17px; margin: 0; accent-color: var(--green); }
+.ticker-setting-row label span { min-width: 0; display: flex; align-items: baseline; gap: 9px; }
+.ticker-setting-row strong { font-family: Georgia, serif; font-size: 18px; }
+.ticker-setting-row small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ticker-setting-row > button { border: 0; border-radius: 8px; padding: 7px 9px; color: var(--red); background: transparent; font-size: 9px; font-weight: 900; cursor: pointer; }
+.ticker-setting-row > button:hover { background: color-mix(in srgb, var(--red) 10%, transparent); }
+.ticker-empty { min-height: 94px; display: grid; place-items: center; align-content: center; gap: 3px; border: 1px dashed var(--line); border-radius: 11px; color: var(--muted); text-align: center; }
+.ticker-empty b { color: var(--ink); font-size: 11px; }.ticker-empty span { font-size: 9px; }
+.ticker-add-form { display: grid; grid-template-columns: .55fr 1fr auto; gap: 8px; align-items: end; margin-top: 14px; }
+.ticker-add-form label > span { display: block; margin-bottom: 6px; font-size: 9px; font-weight: 900; }
+.ticker-add-form label small { color: var(--muted); font-size: 8px; }
+.ticker-add-form input { width: 100%; height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 0 11px; color: var(--ink); outline: 0; background: var(--input-bg); }
+.ticker-add-form input:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(105,195,151,.14); }
+.ticker-add-form > button { height: 44px; border: 0; border-radius: 10px; padding: 0 17px; color: white; background: var(--green); font-size: 10px; font-weight: 900; cursor: pointer; }
+.ticker-add-form > button:disabled { opacity: .5; cursor: not-allowed; }
+.ticker-cost-note { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 13px; border-radius: 10px; padding: 10px 12px; color: var(--muted); background: color-mix(in srgb, var(--amber) 8%, var(--subtle-bg)); font-size: 9px; }
+.ticker-cost-note b { color: var(--amber); }
+.global-monitor-source { display: grid; gap: 9px; padding: 11px 0; }
+.global-monitor-source + .global-monitor-source { margin-top: 7px; border-top: 1px solid var(--line); padding-top: 16px; }
+.global-monitor-source > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.global-monitor-source > div:first-child b { font-size: 10px; }
+.global-monitor-source > div:first-child small { color: var(--muted); font-size: 8px; }
 .empty-state { min-height: 460px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .empty-orbit { display: grid; place-items: center; width: 92px; height: 92px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 50%; box-shadow: 0 0 0 15px rgba(35,118,83,.08), 0 0 0 30px rgba(35,118,83,.04); }
 .empty-orbit span { font-family: Georgia, serif; color: var(--green-2); font-size: 38px; }
@@ -407,9 +433,14 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .history-detail-head h1 { margin: 9px 0 12px; font-family: Georgia, serif; font-size: clamp(42px, 7vw, 66px); font-weight: 500; line-height: 1; letter-spacing: -.05em; }
 .history-detail-head p:last-child { margin: 0; color: var(--muted); font-size: 13px; }
 
-.social-subnav { display: inline-flex; gap: 4px; margin-bottom: 30px; border: 1px solid var(--line); border-radius: 12px; padding: 4px; background: var(--card); box-shadow: var(--shadow); }
-.social-subnav a { min-height: 36px; display: inline-flex; align-items: center; border-radius: 8px; padding: 0 13px; color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 900; }
-.social-subnav a:hover, .social-subnav a.active { color: var(--green-2); background: var(--mint); }
+.section-subnav { width: fit-content; display: inline-flex; gap: 4px; margin-bottom: 30px; border: 1px solid var(--line); border-radius: 12px; padding: 4px; background: var(--card); box-shadow: var(--shadow); }
+.section-subnav a { min-height: 36px; display: inline-flex; align-items: center; border-radius: 8px; padding: 0 15px; color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 900; }
+.section-subnav a:hover, .section-subnav a.active { color: var(--green-2); background: var(--mint); }
+.social-subnav-wrap { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 30px; }
+.social-subnav-wrap .social-subnav { margin-bottom: 0; }
+.social-utility-nav { display: inline-flex; align-items: center; gap: 5px; }
+.social-utility-nav a { min-height: 34px; display: inline-flex; align-items: center; border-radius: 999px; padding: 0 11px; color: var(--muted); text-decoration: none; font-size: 9px; font-weight: 900; }
+.social-utility-nav a:hover, .social-utility-nav a.active { color: var(--green-2); background: var(--mint); }
 
 .analysis-intro { max-width: 850px; }
 .analysis-action-card { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 38px; align-items: center; margin-top: 28px; border: 1px solid var(--line); border-radius: 18px; padding: 24px; background: var(--card); box-shadow: var(--shadow); }
@@ -557,7 +588,11 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .account-post-head span { color: var(--muted); font-size: 9px; font-weight: 900; }
 .post-card { border: 1px solid var(--line); border-radius: 15px; background: var(--card); padding: 18px; }
 .post-head { display: flex; justify-content: space-between; gap: 20px; }
+.post-head > div { min-width: 0; display: flex; align-items: center; gap: 7px; }
 .post-head strong { font-size: 12px; }.post-head time { color: var(--muted); font-size: 9px; }
+.post-source-badge { border-radius: 999px; padding: 2px 6px; color: var(--muted); background: var(--subtle-bg); font-size: 7px; font-weight: 900; white-space: nowrap; }
+.post-source-badge.ticker { color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--subtle-bg)); }
+.mention-chip.matched { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, var(--card)); }
 .post-card > p { min-height: 66px; margin: 16px 0; color: #c9d3cd; font-size: 12px; white-space: pre-wrap; }
 .post-translation { margin: -2px 0 16px; border-left: 2px solid var(--green); padding: 10px 12px; background: #111a15; }
 .post-translation span { display: block; margin-bottom: 6px; color: var(--green-2); font-size: 8px; font-weight: 950; letter-spacing: .08em; }
@@ -781,8 +816,14 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .history-stats span { align-self: center; }
   .history-arrow { grid-column: 3; grid-row: 1 / 3; }
   .history-detail-head { align-items: start; flex-direction: column-reverse; }
-  .social-subnav { width: 100%; margin-bottom: 24px; }
-  .social-subnav a { flex: 1; justify-content: center; padding: 0 7px; }
+  .section-subnav { width: 100%; margin-bottom: 24px; }
+  .section-subnav a { flex: 1; justify-content: center; padding: 0 7px; }
+  .social-subnav-wrap { align-items: stretch; flex-direction: column; gap: 7px; margin-bottom: 24px; }
+  .social-subnav-wrap .social-subnav { margin-bottom: 0; }
+  .social-utility-nav { justify-content: flex-end; }
+  .ticker-add-form { grid-template-columns: 1fr 1fr; }
+  .ticker-add-form > button { grid-column: 1 / -1; }
+  .ticker-setting-row label span { align-items: start; flex-direction: column; gap: 0; }
   .analysis-action-card { padding: 17px; }
   .analysis-report-head { padding: 20px 16px; }
   .analysis-report-head h2 { font-size: 31px; line-height: 1.16; }

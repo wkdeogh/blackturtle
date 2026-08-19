@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { isOpenAIComprehensiveModel } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
 import { getComprehensiveAnalysisState, getLatestRefreshRun, getMissingConfiguration, getSupabaseAdmin } from "@/lib/supabase";
-import type { RefreshSource, RefreshTarget, SocialRefreshMode } from "@/lib/types";
+import type { RefreshSource, RefreshTarget, SocialCollectionScope, SocialRefreshMode } from "@/lib/types";
 import { normalizeXCollectionSettings } from "@/lib/x-collection-settings";
 import { refreshDataWorkflow } from "@/workflows/refresh-data";
 
@@ -40,17 +40,20 @@ export async function POST(request: Request) {
 
   let source: RefreshSource;
   let socialMode: SocialRefreshMode = "collect_and_analyze";
+  let socialScope: SocialCollectionScope = "accounts";
   let collectionSettings: ReturnType<typeof normalizeXCollectionSettings> = null;
   let targets: RefreshTarget[] | undefined;
   let runComprehensiveAnalysis = false;
   let comprehensiveModel = "";
   try {
-    const body = (await request.json()) as { source?: unknown; socialMode?: unknown; collectionSettings?: unknown; targets?: unknown; runComprehensiveAnalysis?: unknown; comprehensiveModel?: unknown };
+    const body = (await request.json()) as { source?: unknown; socialMode?: unknown; socialScope?: unknown; collectionSettings?: unknown; targets?: unknown; runComprehensiveAnalysis?: unknown; comprehensiveModel?: unknown };
     if (body.source !== "macro" && body.source !== "market" && body.source !== "social" && body.source !== "all") throw new Error();
     source = body.source;
     if (source === "social" || source === "all") {
       if (body.socialMode !== undefined && body.socialMode !== "collect_and_analyze" && body.socialMode !== "collect_only" && body.socialMode !== "analyze_only") throw new Error();
       socialMode = (body.socialMode as SocialRefreshMode | undefined) ?? "collect_and_analyze";
+      if (body.socialScope !== undefined && body.socialScope !== "accounts" && body.socialScope !== "tickers" && body.socialScope !== "all") throw new Error();
+      socialScope = (body.socialScope as SocialCollectionScope | undefined) ?? (source === "all" ? "all" : "accounts");
     }
     if (source === "all" && body.targets !== undefined) {
       if (!Array.isArray(body.targets) || !body.targets.length || body.targets.some((target) => target !== "macro" && target !== "market" && target !== "social")) throw new Error();
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
       if (error) throw new Error(`수집 설정 저장 실패: ${error.message}`);
     }
 
-    const workflowRun = await start(refreshDataWorkflow, [runId as string, source, socialMode, targets, runComprehensiveAnalysis ? comprehensiveModel : undefined]);
+    const workflowRun = await start(refreshDataWorkflow, [runId as string, source, socialMode, targets, runComprehensiveAnalysis ? comprehensiveModel : undefined, socialScope]);
     await supabase.rpc("attach_refresh_workflow", { p_run_id: runId, p_workflow_run_id: workflowRun.runId });
     const run = await getLatestRefreshRun();
     return NextResponse.json({ ok: true, run }, { status: 202 });

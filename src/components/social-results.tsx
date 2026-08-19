@@ -12,6 +12,8 @@ interface SocialResultsData {
   topics?: TopicSummary[];
   periodDays: number;
   accounts: Array<{ username: string }>;
+  tickerPeriodDays?: number;
+  tickers?: Array<{ ticker: string }>;
   posts: SocialPost[];
   companies: MentionSummary[];
   analyzedPostCount: number;
@@ -78,11 +80,12 @@ function PostCard({ post }: { post: SocialPost }) {
   const showTranslation = Boolean(translation) && (post.lang?.toLowerCase() !== "ko" || translation !== post.text.trim());
   return (
     <article className="post-card">
-      <div className="post-head"><strong>@{post.username}</strong><time dateTime={post.postedAt}>{formatDateTime(post.postedAt)}</time></div>
+      <div className="post-head"><div><strong>@{post.username}</strong><span className={`post-source-badge ${post.source === "ticker" || post.matchedTickers?.length ? "ticker" : "account"}`}>{post.source === "ticker" || post.matchedTickers?.length ? "티커 검색" : "계정 수집"}</span></div><time dateTime={post.postedAt}>{formatDateTime(post.postedAt)}</time></div>
       <p>{post.text}</p>
       {showTranslation ? <div className="post-translation"><span>한국어 번역</span><p>{translation}</p></div> : !translation && post.lang?.toLowerCase() !== "ko" ? <div className="post-translation pending"><span>한국어 번역</span><p>{post.analyzed === false ? "LLM 분석 대기 중입니다." : "저장 데이터 LLM 재분석 후 번역이 표시됩니다."}</p></div> : null}
       <div className="post-foot">
         <div className="mention-chips">
+          {post.matchedTickers?.map((ticker) => <span className="mention-chip matched" key={`matched-${ticker}`}>${ticker} 검색</span>)}
           {post.mentions.map((mention) => <span className={`mention-chip ${mention.sentiment}`} key={mention.ticker}>${mention.ticker} · {mention.sentiment === "positive" ? "긍정" : mention.sentiment === "negative" ? "부정" : "중립"}</span>)}
           {post.analyzed === false ? <span className="mention-chip pending">분석 대기</span> : !post.mentions.length ? <span className="mention-chip none">기업 미분류</span> : null}
         </div>
@@ -92,34 +95,43 @@ function PostCard({ post }: { post: SocialPost }) {
   );
 }
 
-export function SocialResults({ social, expanded = false }: { social: SocialResultsData; expanded?: boolean }) {
+export function SocialResults({ social, expanded = false, mode = "accounts" }: { social: SocialResultsData; expanded?: boolean; mode?: "accounts" | "tickers" }) {
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [selectedPostAccount, setSelectedPostAccount] = useState<string | null>(null);
   const [visiblePostLimit, setVisiblePostLimit] = useState(POSTS_PER_PAGE);
+  const scopedPosts = useMemo(
+    () => social.posts.filter((post) => mode === "tickers" ? post.source === "ticker" || Boolean(post.matchedTickers?.length) : post.source !== "ticker"),
+    [mode, social.posts],
+  );
   const accountNames = useMemo(() => {
+    if (mode === "tickers") {
+      const tickers = new Set((social.tickers ?? []).map((ticker) => ticker.ticker));
+      for (const post of scopedPosts) for (const ticker of post.matchedTickers ?? []) tickers.add(ticker);
+      return [...tickers].sort((left, right) => left.localeCompare(right));
+    }
     const names = new Set(social.accounts.map((account) => account.username.toLowerCase()));
-    for (const post of social.posts) names.add(post.username.toLowerCase());
+    for (const post of scopedPosts) names.add(post.username.toLowerCase());
     return [...names].sort((left, right) => left.localeCompare(right));
-  }, [social.accounts, social.posts]);
+  }, [mode, scopedPosts, social.accounts, social.tickers]);
   const filteredPosts = useMemo(
-    () => selectedAccount === "all" ? social.posts : social.posts.filter((post) => post.username.toLowerCase() === selectedAccount),
-    [selectedAccount, social.posts],
+    () => selectedAccount === "all" ? scopedPosts : scopedPosts.filter((post) => mode === "tickers" ? post.matchedTickers?.includes(selectedAccount) : post.username.toLowerCase() === selectedAccount),
+    [mode, scopedPosts, selectedAccount],
   );
   const filteredCompanies = useMemo(
-    () => selectedAccount === "all" ? social.companies : aggregateCompanies(filteredPosts),
-    [filteredPosts, selectedAccount, social.companies],
+    () => aggregateCompanies(filteredPosts),
+    [filteredPosts],
   );
   const filteredAnalyzedCount = filteredPosts.filter((post) => post.analyzed !== false).length;
   const postAccountNames = useMemo(
-    () => [...new Set(social.posts.map((post) => post.username.toLowerCase()))].sort((left, right) => left.localeCompare(right)),
-    [social.posts],
+    () => mode === "tickers" ? accountNames : [...new Set(scopedPosts.map((post) => post.username.toLowerCase()))].sort((left, right) => left.localeCompare(right)),
+    [accountNames, mode, scopedPosts],
   );
   const activePostAccount = selectedPostAccount === "all" || (selectedPostAccount && postAccountNames.includes(selectedPostAccount))
     ? selectedPostAccount
     : postAccountNames[0] ?? "all";
   const visiblePosts = useMemo(
-    () => activePostAccount === "all" ? social.posts : social.posts.filter((post) => post.username.toLowerCase() === activePostAccount),
-    [activePostAccount, social.posts],
+    () => activePostAccount === "all" ? scopedPosts : scopedPosts.filter((post) => mode === "tickers" ? post.matchedTickers?.includes(activePostAccount) : post.username.toLowerCase() === activePostAccount),
+    [activePostAccount, mode, scopedPosts],
   );
   const displayedPosts = useMemo(
     () => visiblePosts.slice(0, visiblePostLimit),
@@ -127,12 +139,11 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
   );
   const postCountsByAccount = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const post of social.posts) {
-      const username = post.username.toLowerCase();
-      counts.set(username, (counts.get(username) ?? 0) + 1);
+    for (const name of postAccountNames) {
+      counts.set(name, scopedPosts.filter((post) => mode === "tickers" ? post.matchedTickers?.includes(name) : post.username.toLowerCase() === name).length);
     }
     return counts;
-  }, [social.posts]);
+  }, [mode, postAccountNames, scopedPosts]);
   const postGroups = useMemo(() => {
     const groups = new Map<string, SocialPost[]>();
     for (const post of displayedPosts) {
@@ -144,29 +155,30 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
     return [...groups].map(([username, posts]) => ({ username, posts }));
   }, [displayedPosts]);
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
-  const accountLabel = selectedAccount === "all" ? "전체 계정" : `@${selectedAccount}`;
-  const topics = social.topics ?? [];
-  const postsById = useMemo(() => new Map(social.posts.map((post) => [post.id, post])), [social.posts]);
+  const accountLabel = selectedAccount === "all" ? (mode === "tickers" ? "전체 티커" : "전체 계정") : mode === "tickers" ? `$${selectedAccount}` : `@${selectedAccount}`;
+  const scopedPostIds = useMemo(() => new Set(scopedPosts.map((post) => post.id)), [scopedPosts]);
+  const topics = useMemo(() => (social.topics ?? []).map((topic) => ({ ...topic, postIds: topic.postIds.filter((id) => scopedPostIds.has(id)), postCount: topic.postIds.filter((id) => scopedPostIds.has(id)).length })).filter((topic) => topic.postCount > 0), [scopedPostIds, social.topics]);
+  const postsById = useMemo(() => new Map(scopedPosts.map((post) => [post.id, post])), [scopedPosts]);
   const maxTopicCount = topics[0]?.postCount ?? 1;
   return (
     <>
       <section className="section-block topic-section">
-        <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>전체 계정 · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>
+        <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>{mode === "tickers" ? "티커 검색" : "계정 수집"} · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>
         {social.topicSummaryStale ? <div className="topic-stale-notice">최근 X 수집분은 아직 반영되지 않았습니다. 저장 데이터 LLM 재분석을 실행하면 갱신됩니다.</div> : null}
         {topics.length ? <div className="topic-grid stagger-grid">{topics.map((topic, index) => <TopicCard topic={topic} rank={index + 1} maxCount={maxTopicCount} postsById={postsById} key={`${topic.title}-${index}`} />)}</div> : <div className={social.topicSummaryError ? "inline-empty topic-empty error" : "inline-empty topic-empty"}>{social.topicSummaryError ? `주제 요약 실패: ${social.topicSummaryError}` : social.topicSummaryStale ? "저장 데이터 LLM 재분석을 실행하면 주요 주제를 생성합니다." : social.topics ? "반복해서 등장한 주제를 찾지 못했습니다." : "아직 주요 주제 분석 결과가 없습니다."}</div>}
         <p className="topic-footnote">게시물 하나가 여러 주제와 관련되면 각 주제에 함께 집계될 수 있습니다. 전체 수집 게시물의 공통 흐름을 요약하며 투자 조언이 아닙니다.</p>
       </section>
-      <section className="result-filter" aria-label="X 결과 계정 필터">
-        <div><span>ACCOUNT VIEW</span><strong>{accountLabel}</strong><small>기업 언급 집계를 선택한 계정 기준으로 필터링합니다.</small></div>
-        <label htmlFor="social-account-filter">계정 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((username) => <option value={username} key={username}>@{username}</option>)}</select></label>
+      <section className="result-filter" aria-label={`X 결과 ${mode === "tickers" ? "티커" : "계정"} 필터`}>
+        <div><span>{mode === "tickers" ? "TICKER VIEW" : "ACCOUNT VIEW"}</span><strong>{accountLabel}</strong><small>기업 언급 집계를 선택한 {mode === "tickers" ? "검색 티커" : "계정"} 기준으로 필터링합니다.</small></div>
+        <label htmlFor="social-account-filter">{mode === "tickers" ? "티커" : "계정"} 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((name) => <option value={name} key={name}>{mode === "tickers" ? `$${name}` : `@${name}`}</option>)}</select></label>
       </section>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {social.periodDays}일 · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
+        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {mode === "tickers" ? social.tickerPeriodDays ?? 1 : social.periodDays}일 · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
         <div className="signal-grid filter-swap" key={selectedAccount}>
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
             {companies.map((company, index) => <CompanyRow company={company} rank={index + 1} key={company.ticker} />)}
-            {!filteredCompanies.length ? <p className="board-empty">선택한 계정의 게시물에서 기업 언급을 찾지 못했습니다.</p> : null}
+            {!filteredCompanies.length ? <p className="board-empty">선택한 {mode === "tickers" ? "티커 검색" : "계정"} 게시물에서 기업 언급을 찾지 못했습니다.</p> : null}
           </div>
           <aside className="signal-note">
             <span className="note-index">NOTE 01</span><h3>카운트 해석법</h3>
@@ -177,14 +189,14 @@ export function SocialResults({ social, expanded = false }: { social: SocialResu
         </div>
       </section>
       <section className="section-block">
-        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{activePostAccount === "all" ? "전체 계정" : `@${activePostAccount}`} · {displayedPosts.length}/{visiblePosts.length}개 표시 · 최신순</p></div>
-        {postAccountNames.length ? <div className="post-account-tabs" role="tablist" aria-label="게시물을 볼 X 계정 선택">
-          {postAccountNames.map((username) => <button type="button" role="tab" aria-selected={activePostAccount === username} className={activePostAccount === username ? "active" : ""} onClick={() => { setSelectedPostAccount(username); setVisiblePostLimit(POSTS_PER_PAGE); }} key={username}><span>@{username}</span><small>{postCountsByAccount.get(username) ?? 0}</small></button>)}
-          <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => { setSelectedPostAccount("all"); setVisiblePostLimit(POSTS_PER_PAGE); }}><span>전체</span><small>{social.posts.length}</small></button>
+        <div className="section-title"><div><p className="kicker">03 · COLLECTED POSTS</p><h2>최근 수집 게시물</h2></div><p>{activePostAccount === "all" ? (mode === "tickers" ? "전체 티커" : "전체 계정") : `${mode === "tickers" ? "$" : "@"}${activePostAccount}`} · {displayedPosts.length}/{visiblePosts.length}개 표시 · 최신순</p></div>
+        {postAccountNames.length ? <div className="post-account-tabs" role="tablist" aria-label={`게시물을 볼 X ${mode === "tickers" ? "티커" : "계정"} 선택`}>
+          {postAccountNames.map((name) => <button type="button" role="tab" aria-selected={activePostAccount === name} className={activePostAccount === name ? "active" : ""} onClick={() => { setSelectedPostAccount(name); setVisiblePostLimit(POSTS_PER_PAGE); }} key={name}><span>{mode === "tickers" ? "$" : "@"}{name}</span><small>{postCountsByAccount.get(name) ?? 0}</small></button>)}
+          <button type="button" role="tab" aria-selected={activePostAccount === "all"} className={activePostAccount === "all" ? "active" : ""} onClick={() => { setSelectedPostAccount("all"); setVisiblePostLimit(POSTS_PER_PAGE); }}><span>전체</span><small>{scopedPosts.length}</small></button>
         </div> : null}
         <div className="account-post-groups filter-swap" key={activePostAccount}>{postGroups.map((group) => <section className="account-post-group" key={group.username}><div className="account-post-head"><h3>@{group.username}</h3><span>{group.posts.length}개 표시</span></div><div className="post-grid stagger-grid">{group.posts.map((post) => <PostCard post={post} key={post.id} />)}</div></section>)}</div>
         {displayedPosts.length < visiblePosts.length ? <div className="post-load-more"><button className="secondary-button" type="button" onClick={() => setVisiblePostLimit((current) => Math.min(current + POSTS_PER_PAGE, visiblePosts.length))}>게시물 {Math.min(POSTS_PER_PAGE, visiblePosts.length - displayedPosts.length)}개 더 보기</button><small>남은 {visiblePosts.length - displayedPosts.length}개</small></div> : null}
-        {!visiblePosts.length ? <div className="inline-empty">선택한 계정에서 수집된 X 게시물이 없습니다.</div> : null}
+        {!visiblePosts.length ? <div className="inline-empty">선택한 {mode === "tickers" ? "티커" : "계정"}에서 수집된 X 게시물이 없습니다.</div> : null}
       </section>
     </>
   );

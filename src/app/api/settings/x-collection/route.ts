@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { isSameOriginPost } from "@/lib/session";
-import { getSupabaseAdmin, getXMonitorSettings } from "@/lib/supabase";
+import { getSupabaseAdmin, getXMonitorSettings, getXTickerMonitorSettings } from "@/lib/supabase";
 import { normalizeXCollectionSettings } from "@/lib/x-collection-settings";
 
 export async function GET() {
   if (!(await isAuthenticated())) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   try {
-    const settings = await getXMonitorSettings();
+    const [settings, tickerSettings] = await Promise.all([getXMonitorSettings(), getXTickerMonitorSettings()]);
     return NextResponse.json({
       lookbackDays: settings.lookbackDays,
       perAccountPostLimit: settings.perAccountPostLimit,
       totalPostLimit: settings.totalPostLimit,
       activeAccountCount: settings.usernames.length,
+      activeTickerCount: tickerSettings.activeTickers.length,
+      tickerLookbackDays: tickerSettings.lookbackDays,
+      perTickerPostLimit: tickerSettings.perTickerPostLimit,
+      tickerTotalPostLimit: tickerSettings.totalPostLimit,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "X 수집 설정을 불러오지 못했습니다." }, { status: 500 });

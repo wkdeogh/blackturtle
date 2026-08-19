@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const workflowRun = await start(refreshDataWorkflow, [runId as string, "all", "collect_and_analyze", [...AUTOMATIC_TARGETS]]);
+    const workflowRun = await start(refreshDataWorkflow, [runId as string, "all", "collect_and_analyze", [...AUTOMATIC_TARGETS], undefined, "all"]);
     const { error: attachError } = await supabase.rpc("attach_refresh_workflow", { p_run_id: runId, p_workflow_run_id: workflowRun.runId });
     if (attachError) throw new Error(`Workflow 연결 실패: ${attachError.message}`);
     return NextResponse.json({ ok: true, runId, workflowRunId: workflowRun.runId }, { status: 202 });

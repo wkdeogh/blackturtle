@@ -58,6 +58,7 @@ export interface MarketSnapshot {
 export type RefreshSource = "macro" | "market" | "social" | "all";
 export type RefreshTarget = Exclude<RefreshSource, "all">;
 export type SocialRefreshMode = "collect_and_analyze" | "collect_only" | "analyze_only";
+export type SocialCollectionScope = "accounts" | "tickers" | "all";
 export type RefreshRunState = "running" | "success" | "failed";
 export type RefreshStage = "queued" | "collecting" | "saving" | "completed" | "failed";
 
@@ -87,6 +88,8 @@ export interface SocialPost {
   postedAt: string;
   url: string;
   lang?: string;
+  source?: "account" | "ticker";
+  matchedTickers?: string[];
   mentions: CompanyMention[];
   translationKo?: string;
   analyzed?: boolean;
@@ -116,6 +119,11 @@ export interface XAccountCursor {
   newestPostId?: string;
 }
 
+export interface XTickerCursor {
+  ticker: string;
+  newestPostId?: string;
+}
+
 export interface DashboardSnapshot {
   version: 1;
   generatedAt: string;
@@ -125,6 +133,10 @@ export interface DashboardSnapshot {
   socialUpdatedAt?: string;
   socialCollectedAt?: string;
   socialAnalyzedAt?: string;
+  socialAccountCollectedAt?: string;
+  socialAccountAnalyzedAt?: string;
+  socialTickerCollectedAt?: string;
+  socialTickerAnalyzedAt?: string;
   macroWarnings?: string[];
   macro: MacroSeries[];
   market?: MarketSnapshot;
@@ -136,6 +148,8 @@ export interface DashboardSnapshot {
     topics?: TopicSummary[];
     periodDays: number;
     accounts: XAccountCursor[];
+    tickerPeriodDays?: number;
+    tickers?: XTickerCursor[];
     posts: SocialPost[];
     companies: MentionSummary[];
     analyzedPostCount: number;

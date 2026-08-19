@@ -12,6 +12,10 @@ interface CollectionSettingsResponse {
   perAccountPostLimit?: number | null;
   totalPostLimit?: number | null;
   activeAccountCount?: number;
+  activeTickerCount?: number;
+  tickerLookbackDays?: number;
+  perTickerPostLimit?: number | null;
+  tickerTotalPostLimit?: number | null;
   error?: string;
 }
 
@@ -43,6 +47,10 @@ export function GlobalRefreshControl() {
   const [perAccountPostLimit, setPerAccountPostLimit] = useState("");
   const [totalPostLimit, setTotalPostLimit] = useState("");
   const [activeAccountCount, setActiveAccountCount] = useState(0);
+  const [activeTickerCount, setActiveTickerCount] = useState(0);
+  const [tickerLookbackDays, setTickerLookbackDays] = useState("1");
+  const [perTickerPostLimit, setPerTickerPostLimit] = useState("20");
+  const [tickerTotalPostLimit, setTickerTotalPostLimit] = useState("50");
   const [selectedModel, setSelectedModel] = useState<OpenAIComprehensiveModel>(OPENAI_COMPREHENSIVE_MODELS[0]);
   const [preview, setPreview] = useState<AnalysisPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -107,6 +115,10 @@ export function GlobalRefreshControl() {
       setPerAccountPostLimit(settingsBody.perAccountPostLimit?.toString() ?? "");
       setTotalPostLimit(settingsBody.totalPostLimit?.toString() ?? "");
       setActiveAccountCount(settingsBody.activeAccountCount ?? 0);
+      setActiveTickerCount(settingsBody.activeTickerCount ?? 0);
+      setTickerLookbackDays(String(settingsBody.tickerLookbackDays ?? 1));
+      setPerTickerPostLimit(settingsBody.perTickerPostLimit?.toString() ?? "");
+      setTickerTotalPostLimit(settingsBody.tickerTotalPostLimit?.toString() ?? "");
       if (analysisResponse.ok) {
         const analysisBody = (await analysisResponse.json()) as { run?: ComprehensiveAnalysisRunStatus | null };
         const nextAnalysisRun = analysisBody.run ?? null;
@@ -137,15 +149,31 @@ export function GlobalRefreshControl() {
     };
   }
 
+  function tickerCollectionSettings() {
+    return {
+      lookbackDays: Number(tickerLookbackDays),
+      perTickerPostLimit: perTickerPostLimit ? Number(perTickerPostLimit) : null,
+      totalPostLimit: tickerTotalPostLimit ? Number(tickerTotalPostLimit) : null,
+    };
+  }
+
   function validate(): string | null {
     if (!dataTargets.length && !targets.analysis) return "갱신할 항목을 한 개 이상 선택하세요.";
     if (targets.analysis && analysisRunning) return "이미 종합분석이 진행 중입니다. 완료된 뒤 다시 선택하세요.";
     if (targets.social) {
-      const settings = collectionSettings();
-      if (!Number.isInteger(settings.lookbackDays) || settings.lookbackDays < 1 || settings.lookbackDays > 30) return "모니터링 기간은 1~30일 사이의 정수로 입력하세요.";
-      if (settings.perAccountPostLimit !== null && (!Number.isInteger(settings.perAccountPostLimit) || settings.perAccountPostLimit < 1)) return "계정당 최대 게시물은 비우거나 1 이상의 정수로 입력하세요.";
-      if (settings.totalPostLimit !== null && (!Number.isInteger(settings.totalPostLimit) || settings.totalPostLimit < 1)) return "전체 최대 게시물은 비우거나 1 이상의 정수로 입력하세요.";
-      if (!activeAccountCount) return "모니터링을 실행하려면 계정 설정에서 활성 계정을 한 개 이상 선택하세요.";
+      if (!activeAccountCount && !activeTickerCount) return "모니터링을 실행하려면 활성 계정 또는 티커를 한 개 이상 선택하세요.";
+      if (activeAccountCount) {
+        const settings = collectionSettings();
+        if (!Number.isInteger(settings.lookbackDays) || settings.lookbackDays < 1 || settings.lookbackDays > 30) return "계정 모니터링 기간은 1~30일 사이의 정수로 입력하세요.";
+        if (settings.perAccountPostLimit !== null && (!Number.isInteger(settings.perAccountPostLimit) || settings.perAccountPostLimit < 1)) return "계정당 최대 게시물은 비우거나 1 이상의 정수로 입력하세요.";
+        if (settings.totalPostLimit !== null && (!Number.isInteger(settings.totalPostLimit) || settings.totalPostLimit < 1)) return "계정 수집 전체 상한은 비우거나 1 이상의 정수로 입력하세요.";
+      }
+      if (activeTickerCount) {
+        const settings = tickerCollectionSettings();
+        if (!Number.isInteger(settings.lookbackDays) || settings.lookbackDays < 1 || settings.lookbackDays > 7) return "티커 검색 기간은 1~7일 사이의 정수로 입력하세요.";
+        if (settings.perTickerPostLimit !== null && (!Number.isInteger(settings.perTickerPostLimit) || settings.perTickerPostLimit < 1)) return "티커당 최대 게시물은 비우거나 1 이상의 정수로 입력하세요.";
+        if (settings.totalPostLimit !== null && (!Number.isInteger(settings.totalPostLimit) || settings.totalPostLimit < 1)) return "티커 검색 전체 상한은 비우거나 1 이상의 정수로 입력하세요.";
+      }
     }
     return null;
   }
@@ -205,10 +233,29 @@ export function GlobalRefreshControl() {
       return;
     }
 
+    if (targets.social && activeTickerCount) {
+      setSubmitting(true);
+      try {
+        const response = await fetch("/api/settings/x-ticker-collection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(tickerCollectionSettings()),
+        });
+        const body = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(body.error ?? "티커 검색 설정을 저장하지 못했습니다.");
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "티커 검색 설정을 저장하지 못했습니다.");
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+    }
+
     const started = await refresh.startRefresh({
       targets: dataTargets,
       socialMode: "collect_and_analyze",
-      collectionSettings: targets.social ? collectionSettings() : undefined,
+      socialScope: "all",
+      collectionSettings: targets.social && activeAccountCount ? collectionSettings() : undefined,
       runComprehensiveAnalysis: targets.analysis,
       comprehensiveModel: targets.analysis ? selectedModel : undefined,
     });
@@ -236,12 +283,17 @@ export function GlobalRefreshControl() {
 
           {targets.social ? <fieldset className="global-social-settings" disabled={busy || settingsLoading}>
             <legend>모니터링 수집 조건</legend>
-            <div className="global-refresh-fields">
+            {activeAccountCount ? <div className="global-monitor-source"><div><b>계정 모니터링</b><small>활성 {activeAccountCount}개 · 최근 1~30일</small></div><div className="global-refresh-fields">
               <label><span>수집 기간</span><div><input type="number" inputMode="numeric" min="1" max="30" step="1" value={lookbackDays} onChange={(event) => { setLookbackDays(event.target.value); setPreview(null); }} /><small>일</small></div></label>
-              <label><span>계정당 최대 게시물</span><input type="number" inputMode="numeric" min="1" step="1" value={perAccountPostLimit} onChange={(event) => { setPerAccountPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
-              <label><span>전체 최대 게시물</span><input type="number" inputMode="numeric" min="1" step="1" value={totalPostLimit} onChange={(event) => { setTotalPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
-            </div>
-            <small className="global-account-count">활성 계정 {activeAccountCount}개 · 기간은 1~30일 사이에서 직접 입력</small>
+              <label><span>계정당 최대</span><input type="number" inputMode="numeric" min="1" step="1" value={perAccountPostLimit} onChange={(event) => { setPerAccountPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
+              <label><span>계정 수집 전체</span><input type="number" inputMode="numeric" min="1" step="1" value={totalPostLimit} onChange={(event) => { setTotalPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
+            </div></div> : null}
+            {activeTickerCount ? <div className="global-monitor-source"><div><b>티커 모니터링</b><small>활성 {activeTickerCount}개 · Recent Search 1~7일</small></div><div className="global-refresh-fields">
+              <label><span>검색 기간</span><div><input type="number" inputMode="numeric" min="1" max="7" step="1" value={tickerLookbackDays} onChange={(event) => { setTickerLookbackDays(event.target.value); setPreview(null); }} /><small>일</small></div></label>
+              <label><span>티커당 최대</span><input type="number" inputMode="numeric" min="1" step="1" value={perTickerPostLimit} onChange={(event) => { setPerTickerPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
+              <label><span>티커 검색 전체</span><input type="number" inputMode="numeric" min="1" step="1" value={tickerTotalPostLimit} onChange={(event) => { setTickerTotalPostLimit(event.target.value); setPreview(null); }} placeholder="무제한" /></label>
+            </div></div> : null}
+            {!activeAccountCount && !activeTickerCount ? <small className="global-account-count">활성 계정 또는 티커를 먼저 설정하세요.</small> : null}
           </fieldset> : null}
 
           {targets.analysis ? <div className="global-analysis-settings">

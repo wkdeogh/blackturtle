@@ -1,4 +1,5 @@
 import { MacroResults } from "@/components/macro-results";
+import { MarketDataSubnav } from "@/components/market-data-subnav";
 import { RefreshButton } from "@/components/dashboard-actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -23,6 +24,7 @@ export default async function MacroPage() {
     <main className="dashboard-page">
       <SiteHeader />
       <div className="page-shell dashboard-content">
+        <MarketDataSubnav />
         <section className="dashboard-hero compact-hero">
           <div><p className="kicker">MACRO DATA</p><h1>매크로</h1><p className="hero-copy">저장된 마지막 시장 심리·경제 지표입니다. 이 페이지를 여는 것만으로는 외부 데이터를 호출하지 않습니다.</p></div>
           <div className="refresh-panel"><span>LAST MACRO UPDATE</span><strong>{updatedAt ? formatDateTime(updatedAt) : "아직 없음"}</strong><RefreshButton source="macro" initialRun={latestRun} compact /></div>

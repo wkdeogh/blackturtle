@@ -9,8 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { TurtleLogo } from "@/components/turtle-logo";
 
 const NAV_ITEMS = [
-  { href: "/macro", label: "매크로" },
-  { href: "/market", label: "시장지수" },
+  { href: "/macro", label: "시장 데이터", related: ["/market"] },
   { href: "/social", label: "X 모니터링", related: ["/history", "/settings"] },
   { href: "/analysis", label: "종합분석" },
 ];

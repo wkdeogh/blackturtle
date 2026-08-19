@@ -259,6 +259,21 @@ export interface XMonitorAccountSetting {
   enabled: boolean;
 }
 
+export interface XTickerMonitorSetting {
+  ticker: string;
+  companyName: string;
+  enabled: boolean;
+}
+
+export interface XTickerMonitorSettingsResult {
+  tickers: XTickerMonitorSetting[];
+  activeTickers: XTickerMonitorSetting[];
+  lookbackDays: number;
+  perTickerPostLimit: number | null;
+  totalPostLimit: number | null;
+  migrationReady: boolean;
+}
+
 function optionalPositiveInteger(value: string | undefined): number | null {
   if (!value) return null;
   const parsed = Number(value);
@@ -331,6 +346,42 @@ export async function getXMonitorSettings(): Promise<XMonitorSettingsResult> {
     totalPostLimit: (settingsResult.data?.total_post_limit as number | null | undefined) ?? null,
     source: "database",
     accountStatusReady: !statusColumnMissing,
+  };
+}
+
+export async function getXTickerMonitorSettings(): Promise<XTickerMonitorSettingsResult> {
+  const fallback: XTickerMonitorSettingsResult = {
+    tickers: [],
+    activeTickers: [],
+    lookbackDays: 1,
+    perTickerPostLimit: 20,
+    totalPostLimit: 50,
+    migrationReady: false,
+  };
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return fallback;
+
+  const [tickersResult, settingsResult] = await Promise.all([
+    supabase.from("x_monitored_tickers").select("ticker, company_name, enabled").order("position"),
+    supabase.from("x_ticker_monitor_settings").select("lookback_days, per_ticker_post_limit, total_post_limit").eq("id", "primary").maybeSingle(),
+  ]);
+  const migrationMissing = [tickersResult.error, settingsResult.error].some((error) => error?.code === "42P01" || error?.code === "PGRST205");
+  if (migrationMissing) return fallback;
+  if (tickersResult.error) throw new Error(`X 티커 설정 조회 실패: ${tickersResult.error.message}`);
+  if (settingsResult.error) throw new Error(`X 티커 수집 설정 조회 실패: ${settingsResult.error.message}`);
+
+  const tickers: XTickerMonitorSetting[] = (tickersResult.data ?? []).map((row) => ({
+    ticker: row.ticker as string,
+    companyName: (row.company_name as string | null | undefined) ?? "",
+    enabled: row.enabled as boolean,
+  }));
+  return {
+    tickers,
+    activeTickers: tickers.filter((ticker) => ticker.enabled),
+    lookbackDays: (settingsResult.data?.lookback_days as number | undefined) ?? 1,
+    perTickerPostLimit: (settingsResult.data?.per_ticker_post_limit as number | null | undefined) ?? 20,
+    totalPostLimit: (settingsResult.data?.total_post_limit as number | null | undefined) ?? 50,
+    migrationReady: true,
   };
 }
 
