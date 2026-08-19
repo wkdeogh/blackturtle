@@ -22,7 +22,7 @@ async function analyzeAndStore(runId: string, snapshotId: string, requestedModel
 
   const generated = await analyzeDashboardWithOpenAI(snapshot.payload, apiKey, model);
   const report: ComprehensiveAnalysisReport = {
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
     sourceSnapshotId: snapshot.id,
     sourceSnapshotGeneratedAt: snapshot.payload.generatedAt,

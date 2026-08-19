@@ -179,13 +179,21 @@ export interface ComprehensiveAnalysisRunStatus {
   error: string | null;
 }
 
-export interface ComprehensiveAnalysisReport {
-  version: 1;
+interface ComprehensiveAnalysisReportMetadata {
   generatedAt: string;
   sourceSnapshotId: string;
   sourceSnapshotGeneratedAt: string;
   model: string;
   estimatedInputTokens: number;
+}
+
+export interface MarkdownComprehensiveAnalysisReport extends ComprehensiveAnalysisReportMetadata {
+  version: 2;
+  markdown: string;
+}
+
+export interface LegacyComprehensiveAnalysisReport extends ComprehensiveAnalysisReportMetadata {
+  version: 1;
   headline: string;
   executiveSummary: string;
   marketRegime: {
@@ -228,6 +236,8 @@ export interface ComprehensiveAnalysisReport {
   dataCaveats: string[];
   bottomLine: string;
 }
+
+export type ComprehensiveAnalysisReport = MarkdownComprehensiveAnalysisReport | LegacyComprehensiveAnalysisReport;
 
 export interface StoredComprehensiveAnalysis {
   id: string;

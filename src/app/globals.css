@@ -519,6 +519,42 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .analysis-bottom-line details { border-top: 1px solid var(--line); padding-top: 14px; }
 .analysis-bottom-line summary { color: var(--muted); font-size: 9px; font-weight: 900; cursor: pointer; }
 .analysis-bottom-line > small { display: block; margin-top: 18px; color: var(--muted); font-size: 8px; }
+.analysis-markdown-report { border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); }
+.analysis-markdown-report .analysis-stale { margin: 14px 14px 0; }
+.analysis-markdown-meta { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 36px; align-items: center; border-bottom: 1px solid var(--line); padding: 24px 30px; background: var(--subtle-bg); }
+.analysis-markdown-meta h2 { margin: 7px 0 3px; font-family: Georgia, serif; font-size: 31px; font-weight: 500; letter-spacing: -.035em; }
+.analysis-markdown-meta > div > p:last-child { margin: 0; color: var(--muted); font-size: 10px; }
+.analysis-markdown-meta dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
+.analysis-markdown-meta dl div { min-width: 0; border-left: 1px solid var(--line); padding-left: 10px; }
+.analysis-markdown-meta dt { color: var(--muted); font-size: 7px; font-weight: 900; letter-spacing: .08em; }
+.analysis-markdown-meta dd { overflow: hidden; margin: 4px 0 0; font-size: 9px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-markdown-body { max-width: 920px; margin: 0 auto; padding: 46px clamp(28px, 6vw, 74px) 54px; color: var(--ink); }
+.analysis-markdown-body > :first-child { margin-top: 0; }
+.analysis-markdown-body > :last-child { margin-bottom: 0; }
+.analysis-markdown-body h1, .analysis-markdown-body h2, .analysis-markdown-body h3, .analysis-markdown-body h4 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.025em; }
+.analysis-markdown-body h1 { margin: 0 0 25px; font-size: clamp(34px, 5vw, 52px); line-height: 1.12; }
+.analysis-markdown-body h2 { margin: 42px 0 14px; border-top: 1px solid var(--line); padding-top: 25px; font-size: clamp(25px, 3vw, 33px); line-height: 1.25; }
+.analysis-markdown-body h3 { margin: 28px 0 10px; font-size: 21px; line-height: 1.35; }
+.analysis-markdown-body h4 { margin: 22px 0 8px; color: var(--green-2); font-size: 15px; }
+.analysis-markdown-body p { margin: 0 0 16px; color: var(--ink); font-size: 14px; line-height: 1.85; }
+.analysis-markdown-body strong { color: var(--green-2); font-weight: 900; }
+.analysis-markdown-body ul, .analysis-markdown-body ol { margin: 12px 0 20px; padding-left: 22px; color: var(--ink); font-size: 13px; line-height: 1.75; }
+.analysis-markdown-body li + li { margin-top: 7px; }
+.analysis-markdown-body li::marker { color: var(--green-2); font-weight: 900; }
+.analysis-markdown-body blockquote { margin: 22px 0; border-left: 3px solid var(--green-2); border-radius: 0 11px 11px 0; padding: 14px 18px; color: var(--muted); background: var(--subtle-bg); }
+.analysis-markdown-body blockquote p { margin: 0; color: inherit; font-size: 13px; }
+.analysis-markdown-body hr { margin: 34px 0; border: 0; border-top: 1px solid var(--line); }
+.analysis-markdown-body a { color: var(--green-2); text-underline-offset: 3px; }
+.analysis-markdown-body code { border-radius: 5px; padding: 2px 5px; color: var(--green-2); background: var(--mint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
+.analysis-markdown-body pre { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; padding: 14px; background: var(--subtle-bg); }
+.analysis-markdown-body pre code { padding: 0; color: var(--ink); background: transparent; }
+.analysis-markdown-table { max-width: 100%; margin: 20px 0 26px; overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; }
+.analysis-markdown-table table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.analysis-markdown-table th, .analysis-markdown-table td { min-width: 100px; border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+.analysis-markdown-table th { color: var(--green-2); background: var(--subtle-bg); font-size: 9px; font-weight: 900; }
+.analysis-markdown-table tr:last-child td { border-bottom: 0; }
+.analysis-markdown-image-note { display: inline-block; color: var(--muted); font-size: 9px; }
+.analysis-markdown-footer { border-top: 1px solid var(--line); padding: 13px 30px; color: var(--muted); background: var(--subtle-bg); font-size: 8px; text-align: right; }
 .analysis-modal-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(4, 8, 6, .72); backdrop-filter: blur(5px); }
 .analysis-modal { width: min(520px, 100%); max-height: calc(100svh - 40px); overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; padding: 25px; background: var(--card); box-shadow: 0 25px 80px rgba(0,0,0,.42); }
 .analysis-modal h2 { margin: 8px 0 10px; font-family: Georgia, serif; font-size: 32px; font-weight: 500; }
@@ -840,6 +876,19 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .analysis-scenarios { grid-template-columns: 1fr; }
   .analysis-bottom-line { margin-top: 32px; padding: 18px 16px; }
   .analysis-bottom-line h2 { font-size: 19px; line-height: 1.5; }
+  .analysis-markdown-meta { grid-template-columns: 1fr; gap: 17px; padding: 19px 16px; }
+  .analysis-markdown-meta h2 { font-size: 26px; }
+  .analysis-markdown-meta dl { gap: 5px; }
+  .analysis-markdown-meta dl div { padding-left: 7px; }
+  .analysis-markdown-meta dd { font-size: 8px; }
+  .analysis-markdown-body { padding: 30px 17px 38px; }
+  .analysis-markdown-body h1 { margin-bottom: 20px; font-size: 33px; }
+  .analysis-markdown-body h2 { margin-top: 34px; padding-top: 20px; font-size: 25px; }
+  .analysis-markdown-body h3 { margin-top: 24px; font-size: 20px; }
+  .analysis-markdown-body p { margin-bottom: 14px; font-size: 13px; line-height: 1.78; }
+  .analysis-markdown-body ul, .analysis-markdown-body ol { font-size: 12px; line-height: 1.7; }
+  .analysis-markdown-body blockquote { padding: 12px 14px; }
+  .analysis-markdown-footer { padding: 12px 16px; text-align: left; }
   .analysis-modal { padding: 20px 16px; }
   .analysis-modal-actions { grid-template-columns: 1fr; }
   .global-refresh-backdrop { place-items: end center; padding: max(10px, env(safe-area-inset-top)) 0 0; }

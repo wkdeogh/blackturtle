@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     }
 
     const report: ComprehensiveAnalysisReport = {
-      version: 1,
+      version: 2,
       generatedAt: new Date().toISOString(),
       sourceSnapshotId: sourceSnapshot.id,
       sourceSnapshotGeneratedAt: sourceSnapshot.payload.generatedAt,
