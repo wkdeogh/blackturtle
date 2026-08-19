@@ -6,6 +6,8 @@ const PUBLIC_PATHS = new Set(["/login", "/api/auth/login", "/manifest.webmanifes
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path.startsWith("/.well-known/workflow/")) return NextResponse.next();
+  // Vercel Cron은 브라우저 로그인 쿠키 없이 호출된다. 실제 인증은 Route Handler의 CRON_SECRET 검증에 맡긴다.
+  if (path === "/api/cron/daily-refresh") return NextResponse.next();
   const authenticated = await verifySessionToken(
     request.cookies.get(sessionConfig.cookieName)?.value,
     process.env.AUTH_SECRET,
