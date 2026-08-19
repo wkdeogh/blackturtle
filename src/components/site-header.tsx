@@ -16,12 +16,12 @@ const NAV_ITEMS = [
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const navigation = NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) || item.related?.some((path) => pathname.startsWith(path)) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>);
+  const navigation = NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) || item.related?.some((path) => pathname.startsWith(path)) ? "active" : ""} href={item.href} prefetch key={item.href}>{item.label}</Link>);
   return (
     <>
       <header className="site-header">
         <div className="page-shell header-inner">
-          <Link className="wordmark" href="/macro" aria-label="Black Turtle 홈"><TurtleLogo priority /><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
+          <Link className="wordmark" href="/macro" prefetch aria-label="Black Turtle 홈"><TurtleLogo priority /><span>BLACK TURTLE<small>INVESTMENT DESK</small></span></Link>
           <nav className="site-nav desktop-site-nav" aria-label="대시보드 메뉴">{navigation}</nav>
           <div className="header-actions"><GlobalRefreshIndicator /><GlobalRefreshControl /><ThemeToggle /><span className="private-label">PRIVATE</span><LogoutButton /></div>
         </div>
