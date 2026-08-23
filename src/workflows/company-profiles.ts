@@ -9,8 +9,14 @@ export const COMPANY_PROFILE_STALE_DAYS = 60;
 const FINANCIAL_BATCH_SIZE = 8;
 const ANALYSIS_BATCH_SIZE = 3;
 
-export function isCompanyProfileDue(analyzedAt: string | null, promptVersion: number | null, now = Date.now()): boolean {
-  if (!analyzedAt || promptVersion !== COMPANY_PROFILE_PROMPT_VERSION) return true;
+export function isCompanyProfileDue(
+  analyzedAt: string | null,
+  promptVersion: number | null,
+  analyzedModel: string | null,
+  targetModel: string,
+  now = Date.now(),
+): boolean {
+  if (!analyzedAt || promptVersion !== COMPANY_PROFILE_PROMPT_VERSION || analyzedModel !== targetModel) return true;
   const analyzedTime = Date.parse(analyzedAt);
   return !Number.isFinite(analyzedTime) || now - analyzedTime >= COMPANY_PROFILE_STALE_DAYS * 86_400_000;
 }
@@ -193,7 +199,7 @@ export async function companyProfileWorkflow(runId: string, tickers: string[], m
   }
 }
 
-export async function getCompanyProfileRefreshPreview(ticker?: string) {
+export async function getCompanyProfileRefreshPreview(ticker?: string, targetModel = "") {
   const [research, state] = await Promise.all([getInvestorResearchState(), getCompanyProfilesState()]);
   if (!state.migrationReady) throw new Error("COMPANY_PROFILE_MIGRATION_REQUIRED");
   const universe = research.market.marketCapitalization?.items.slice(0, 200) ?? [];
@@ -203,7 +209,12 @@ export async function getCompanyProfileRefreshPreview(ticker?: string) {
   if (ticker && !requested.length) throw new Error("시가총액 TOP200에서 해당 기업을 찾지 못했습니다.");
   const candidates = ticker ? requested : requested.filter((company) => {
     const summary = summaryByTicker.get(company.symbol);
-    return isCompanyProfileDue(summary?.profileAnalyzedAt ?? null, summary?.profilePromptVersion ?? null);
+    return isCompanyProfileDue(
+      summary?.profileAnalyzedAt ?? null,
+      summary?.profilePromptVersion ?? null,
+      summary?.profileModel ?? null,
+      targetModel,
+    );
   });
   return {
     universe,

@@ -67,9 +67,10 @@ export async function POST(request: Request) {
   ].filter(Boolean) as string[];
   if (missing.length) return NextResponse.json({ error: `설정되지 않은 환경 변수: ${missing.join(", ")}` }, { status: 503 });
 
+  const model = modelName();
   let preview: Awaited<ReturnType<typeof getCompanyProfileRefreshPreview>>;
   try {
-    preview = await getCompanyProfileRefreshPreview(mode === "single" ? ticker : undefined);
+    preview = await getCompanyProfileRefreshPreview(mode === "single" ? ticker : undefined, model);
   } catch (error) {
     const message = error instanceof Error ? error.message : "기업 분석 대상을 확인하지 못했습니다.";
     return NextResponse.json({
@@ -79,7 +80,6 @@ export async function POST(request: Request) {
     }, { status: message === "COMPANY_PROFILE_MIGRATION_REQUIRED" ? 503 : 400 });
   }
 
-  const model = modelName();
   const estimatedInputTokens = preview.candidates.length * COMPANY_PROFILE_ESTIMATED_INPUT_TOKENS;
   if (action === "preview") {
     return NextResponse.json({
