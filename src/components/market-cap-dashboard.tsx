@@ -25,11 +25,10 @@ function rankMovement(item: MarketCapitalizationItem) {
 }
 
 export function MarketCapDashboard({ snapshot }: { snapshot: MarketCapitalizationSnapshot }) {
-  const [limit, setLimit] = useState<100 | 200>(100);
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("all");
   const [visibleCount, setVisibleCount] = useState(50);
-  const ranked = useMemo(() => snapshot.items.slice(0, limit), [limit, snapshot.items]);
+  const ranked = snapshot.items.slice(0, 200);
   const sectors = useMemo(() => [...new Set(snapshot.items.map((item) => item.sector))].sort((a, b) => a.localeCompare(b, "ko")), [snapshot.items]);
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = useMemo(() => ranked.filter((item) => {
@@ -39,31 +38,23 @@ export function MarketCapDashboard({ snapshot }: { snapshot: MarketCapitalizatio
   const rows = filtered.slice(0, normalizedQuery || sector !== "all" ? filtered.length : visibleCount);
   const totalMarketCap = ranked.reduce((sum, item) => sum + item.marketCap, 0);
   const topTenMarketCap = ranked.slice(0, 10).reduce((sum, item) => sum + item.marketCap, 0);
-  const sectorTotals = useMemo(() => {
+  const sectorTotals = (() => {
     const totals = new Map<string, number>();
     for (const item of ranked) totals.set(item.sector, (totals.get(item.sector) ?? 0) + item.marketCap);
     return [...totals.entries()].sort((left, right) => right[1] - left[1]);
-  }, [ranked]);
+  })();
   const largest = sectorTotals[0];
   const maximum = ranked[0]?.marketCap ?? 1;
 
-  function changeLimit(next: 100 | 200) {
-    setLimit(next);
-    setVisibleCount(50);
-  }
-
   return <>
-    <section className="market-cap-summary" aria-label={`시가총액 상위 ${limit}개 요약`}>
-      <article><span>TOP {limit} 합산</span><strong>{compactDollar(totalMarketCap)}</strong><small>중복 주식 종류는 기업 단위로 정리</small></article>
-      <article><span>상위 10 집중도</span><strong>{totalMarketCap ? `${((topTenMarketCap / totalMarketCap) * 100).toFixed(1)}%` : "-"}</strong><small>TOP {limit} 합산 시총 중 비중</small></article>
+    <section className="market-cap-summary" aria-label="시가총액 상위 200개 요약">
+      <article><span>TOP 200 합산</span><strong>{compactDollar(totalMarketCap)}</strong><small>중복 주식 종류는 기업 단위로 정리</small></article>
+      <article><span>상위 10 집중도</span><strong>{totalMarketCap ? `${((topTenMarketCap / totalMarketCap) * 100).toFixed(1)}%` : "-"}</strong><small>TOP 200 합산 시총 중 비중</small></article>
       <article><span>최대 섹터</span><strong>{largest?.[0] ?? "-"}</strong><small>{largest && totalMarketCap ? `${((largest[1] / totalMarketCap) * 100).toFixed(1)}%` : "분류 데이터 없음"}</small></article>
     </section>
 
     <section className="market-cap-board">
       <header className="market-cap-tools">
-        <div className="market-cap-limit" aria-label="순위 범위">
-          {([100, 200] as const).map((value) => <button type="button" className={limit === value ? "active" : ""} onClick={() => changeLimit(value)} key={value}>TOP {value}</button>)}
-        </div>
         <label className="market-cap-search"><span className="sr-only">종목 검색</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(50); }} placeholder="티커 또는 기업명 검색" autoComplete="off" /><i aria-hidden="true">⌕</i></label>
         <label className="market-cap-sector"><span className="sr-only">섹터 선택</span><select value={sector} onChange={(event) => { setSector(event.target.value); setVisibleCount(50); }}><option value="all">전체 섹터</option>{sectors.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
       </header>

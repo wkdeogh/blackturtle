@@ -240,11 +240,11 @@ function compactInvestorResearch(research: InvestorResearchState | undefined, po
   const today = new Date().toISOString().slice(0, 10);
   const priceByTicker = new Map((research?.market.portfolioPrices ?? []).map((price) => [price.ticker, price]));
   const marketCap = research?.market.marketCapitalization ?? null;
-  const topOneHundred = marketCap?.items.slice(0, 100) ?? [];
-  const topOneHundredTotal = topOneHundred.reduce((sum, item) => sum + item.marketCap, 0);
-  const topTenTotal = topOneHundred.slice(0, 10).reduce((sum, item) => sum + item.marketCap, 0);
+  const topTwoHundred = marketCap?.items.slice(0, 200) ?? [];
+  const topTwoHundredTotal = topTwoHundred.reduce((sum, item) => sum + item.marketCap, 0);
+  const topTenTotal = topTwoHundred.slice(0, 10).reduce((sum, item) => sum + item.marketCap, 0);
   const sectorTotals = new Map<string, number>();
-  for (const item of topOneHundred) sectorTotals.set(item.sector, (sectorTotals.get(item.sector) ?? 0) + item.marketCap);
+  for (const item of topTwoHundred) sectorTotals.set(item.sector, (sectorTotals.get(item.sector) ?? 0) + item.marketCap);
   return {
     portfolio: portfolio.filter((item) => item.enabled).slice(0, 50).map((item) => {
       const price = priceByTicker.get(item.ticker);
@@ -275,9 +275,9 @@ function compactInvestorResearch(research: InvestorResearchState | undefined, po
     market_cap_ranking: marketCap ? {
       updated_at: marketCap.updatedAt,
       universe_count: marketCap.universeCount,
-      top_100_total_usd: topOneHundredTotal,
-      top_10_concentration_percent: topOneHundredTotal ? round((topTenTotal / topOneHundredTotal) * 100, 2) : null,
-      largest_sectors: [...sectorTotals.entries()].sort((left, right) => right[1] - left[1]).slice(0, 5).map(([sector, value]) => ({ sector, market_cap_usd: value, top_100_weight_percent: topOneHundredTotal ? round((value / topOneHundredTotal) * 100, 2) : null })),
+      top_200_total_usd: topTwoHundredTotal,
+      top_10_concentration_percent: topTwoHundredTotal ? round((topTenTotal / topTwoHundredTotal) * 100, 2) : null,
+      largest_sectors: [...sectorTotals.entries()].sort((left, right) => right[1] - left[1]).slice(0, 5).map(([sector, value]) => ({ sector, market_cap_usd: value, top_200_weight_percent: topTwoHundredTotal ? round((value / topTwoHundredTotal) * 100, 2) : null })),
       leaders: marketCap.items.slice(0, 20).map((item) => ({ rank: item.rank, ticker: item.symbol, company: item.name, market_cap_usd: item.marketCap, day_change_percent: round(item.dayChangePercent, 2), rank_change: item.rankChange })),
     } : null,
     source_status: [...(research?.macro.statuses ?? []), ...(research?.market.statuses ?? [])].map((status) => ({ source: status.source, state: status.state, observation_date: status.observationDate ?? null, message: compactText(status.message, 140) })),
