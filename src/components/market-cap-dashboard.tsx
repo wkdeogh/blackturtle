@@ -28,6 +28,7 @@ export function MarketCapDashboard({ snapshot }: { snapshot: MarketCapitalizatio
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("all");
   const [visibleCount, setVisibleCount] = useState(50);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const ranked = snapshot.items.slice(0, 200);
   const sectors = useMemo(() => [...new Set(snapshot.items.map((item) => item.sector))].sort((a, b) => a.localeCompare(b, "ko")), [snapshot.items]);
   const normalizedQuery = query.trim().toLowerCase();
@@ -46,6 +47,32 @@ export function MarketCapDashboard({ snapshot }: { snapshot: MarketCapitalizatio
   const largest = sectorTotals[0];
   const maximum = ranked[0]?.marketCap ?? 1;
 
+  async function copyVisibleTickers() {
+    if (!rows.length) return;
+    const tickers = rows.map((item) => item.symbol).join(", ");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(tickers);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = tickers;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("clipboard copy failed");
+      }
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    } catch {
+      setCopyState("error");
+      window.setTimeout(() => setCopyState("idle"), 2400);
+    }
+  }
+
   return <>
     <section className="market-cap-summary" aria-label="시가총액 상위 200개 요약">
       <article><span>TOP 200 합산</span><strong>{compactDollar(totalMarketCap)}</strong><small>중복 주식 종류는 기업 단위로 정리</small></article>
@@ -57,6 +84,7 @@ export function MarketCapDashboard({ snapshot }: { snapshot: MarketCapitalizatio
       <header className="market-cap-tools">
         <label className="market-cap-search"><span className="sr-only">종목 검색</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(50); }} placeholder="티커 또는 기업명 검색" autoComplete="off" /><i aria-hidden="true">⌕</i></label>
         <label className="market-cap-sector"><span className="sr-only">섹터 선택</span><select value={sector} onChange={(event) => { setSector(event.target.value); setVisibleCount(50); }}><option value="all">전체 섹터</option>{sectors.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
+        <button type="button" className="market-cap-copy" onClick={copyVisibleTickers} disabled={!rows.length} title={rows.length ? `현재 표시된 ${rows.length}개 티커 복사` : "복사할 티커가 없습니다."} aria-label={rows.length ? `현재 표시된 ${rows.length}개 티커 복사` : "복사할 티커가 없습니다."}>{copyState === "copied" ? "복사됨" : copyState === "error" ? "복사 실패" : "티커 복사"}</button>
       </header>
 
       <div className="market-cap-table-head" aria-hidden="true"><span>순위</span><span>기업</span><span>섹터</span><span>주가 / 일간</span><span>시가총액</span></div>
