@@ -34,11 +34,12 @@ function fullDollar(value: number): string {
 
 function financialValue(value: number | null, currency: string): string {
   if (value === null) return "-";
-  try {
-    return new Intl.NumberFormat("ko-KR", { notation: "compact", style: "currency", currency, maximumFractionDigits: 1 }).format(value);
-  } catch {
-    return `${new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 }).format(value)} ${currency}`;
-  }
+  const absolute = Math.abs(value);
+  const unit = absolute >= 1_000_000_000_000 ? "T" : absolute >= 1_000_000_000 ? "B" : absolute >= 1_000_000 ? "M" : "";
+  const divisor = unit === "T" ? 1_000_000_000_000 : unit === "B" ? 1_000_000_000 : unit === "M" ? 1_000_000 : 1;
+  const amount = (absolute / divisor).toFixed(1).replace(/\.0$/, "");
+  const prefix = currency === "USD" ? "$" : `${currency} `;
+  return `${value < 0 ? "-" : ""}${prefix}${amount}${unit}`;
 }
 
 function percent(value: number | null): string {
