@@ -23,7 +23,7 @@ export default async function MarketCapPage() {
   return <main className="dashboard-page"><SiteHeader /><div className="page-shell dashboard-content">
     <section className="dashboard-hero compact-hero">
       <div><p className="kicker">US MARKET CAPITALIZATION</p><h1>시가총액</h1><p className="hero-copy">미국 거래소 상장 기업 상위 200개를 시가총액 순으로 봅니다. 기업 검색과 섹터 필터를 지원하며 페이지를 여는 것만으로 외부 API를 호출하지 않습니다.</p></div>
-      <div className="refresh-panel"><span>LAST MARKET CAP UPDATE</span><strong>{snapshot?.updatedAt ? formatDateTime(snapshot.updatedAt) : "아직 없음"}</strong><RefreshButton source="market" initialRun={latestRun} compact /><p className="hero-side-note">무료 Nasdaq 데이터는 시장지수 갱신과 함께 저장됩니다.</p></div>
+      <div className="refresh-panel"><span>LAST MARKET CAP UPDATE</span><strong>{snapshot?.updatedAt ? formatDateTime(snapshot.updatedAt) : "아직 없음"}</strong><RefreshButton source="market" initialRun={latestRun} compact /><p className="hero-side-note"></p></div>
     </section>
 
     {databaseError || !research?.migrationReady ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>{databaseError ? "데이터베이스 확인이 필요합니다" : "리서치 migration이 필요합니다"}</strong></div><p>{databaseError || "Supabase에서 202608190014_investor_research.sql을 실행하세요."}</p></aside> : null}
