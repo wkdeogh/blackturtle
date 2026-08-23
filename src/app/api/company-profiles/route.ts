@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     mode = body.mode;
     ticker = typeof body.ticker === "string" ? body.ticker.trim().toUpperCase() : undefined;
     expectedCount = typeof body.expectedCount === "number" && Number.isInteger(body.expectedCount) ? body.expectedCount : undefined;
-    if (mode === "single" && (!ticker || !/^[A-Z][A-Z0-9.-]{0,14}$/.test(ticker))) throw new Error();
+    if (mode === "single" && (!ticker || !/^[A-Z][A-Z0-9./-]{0,14}$/.test(ticker))) throw new Error();
   } catch {
     return NextResponse.json({ error: "기업 정보 갱신 요청이 올바르지 않습니다." }, { status: 400 });
   }

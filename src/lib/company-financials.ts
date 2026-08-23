@@ -60,6 +60,10 @@ export interface CompanyNarrativeSource {
   excerpt: string;
 }
 
+function tickerLookupKey(ticker: string): string {
+  return ticker.trim().toUpperCase().replace(/[./-]/g, "");
+}
+
 const ANNUAL_FORMS = new Set(["10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A"]);
 const QUARTERLY_FORMS = new Set(["10-Q", "10-Q/A", "6-K", "6-K/A"]);
 const REVENUE_TAGS = [
@@ -168,11 +172,12 @@ async function fetchSecJson<T>(url: string, userAgent: string, label: string): P
 
 export async function resolveSecCompanyIdentities(tickers: string[], userAgent: string): Promise<SecCompanyIdentity[]> {
   const body = await fetchSecJson<SecTickerMap>("https://www.sec.gov/files/company_tickers.json", userAgent, "SEC 티커 목록");
-  const requested = new Set(tickers.map((ticker) => ticker.toUpperCase()));
+  const requested = new Map(tickers.map((ticker) => [tickerLookupKey(ticker), ticker.toUpperCase()]));
   return Object.values(body).flatMap((row) => {
     const ticker = row.ticker?.toUpperCase();
-    return ticker && requested.has(ticker) && Number.isFinite(row.cik_str)
-      ? [{ ticker, cik: row.cik_str!, name: row.title ?? ticker }]
+    const requestedTicker = ticker ? requested.get(tickerLookupKey(ticker)) : undefined;
+    return ticker && requestedTicker && Number.isFinite(row.cik_str)
+      ? [{ ticker: requestedTicker, cik: row.cik_str!, name: row.title ?? ticker }]
       : [];
   });
 }

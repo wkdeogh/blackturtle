@@ -25,7 +25,7 @@ create table if not exists public.company_profiles (
   profile_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint company_profiles_ticker_format check (ticker ~ '^[A-Z][A-Z0-9.-]{0,14}$')
+  constraint company_profiles_ticker_format check (ticker ~ '^[A-Z][A-Z0-9./-]{0,14}$')
 );
 
 create table if not exists public.company_profile_runs (
@@ -83,7 +83,7 @@ begin
   if p_mode not in ('bulk', 'single') then
     raise exception 'COMPANY_PROFILE_MODE_INVALID';
   end if;
-  if p_mode = 'single' and coalesce(p_ticker, '') !~ '^[A-Z][A-Z0-9.-]{0,14}$' then
+  if p_mode = 'single' and coalesce(p_ticker, '') !~ '^[A-Z][A-Z0-9./-]{0,14}$' then
     raise exception 'COMPANY_PROFILE_TICKER_INVALID';
   end if;
 

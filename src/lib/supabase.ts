@@ -299,7 +299,7 @@ export async function getCompanyProfilesState(): Promise<{ migrationReady: boole
 
 export async function getCompanyProfileDetail(ticker: string): Promise<{ migrationReady: boolean; profile: CompanyProfileDetail | null }> {
   const normalized = ticker.trim().toUpperCase();
-  if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(normalized)) return { migrationReady: true, profile: null };
+  if (!/^[A-Z][A-Z0-9./-]{0,14}$/.test(normalized)) return { migrationReady: true, profile: null };
   const supabase = getSupabaseAdmin();
   if (!supabase) return { migrationReady: false, profile: null };
   const { data, error } = await supabase.from("company_profiles")
