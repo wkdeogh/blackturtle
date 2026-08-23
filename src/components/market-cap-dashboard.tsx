@@ -81,6 +81,66 @@ function FinancialRows({ rows, currency }: { rows: CompanyFinancialPeriod[]; cur
   return <div className="company-financial-table"><div className="company-financial-head"><span>기간</span><span>매출</span><span>영업이익</span><span>영업이익률</span></div>{rows.map((row) => <div className="company-financial-row" key={`${row.periodEnd}-${row.form}-${row.accession}`}><span><b>{row.periodEnd}</b><small>{row.form}{row.derived ? " · 계산값" : ""}</small></span><strong>{financialValue(row.revenue, currency)}</strong><strong>{financialValue(row.operatingIncome, currency)}</strong><strong>{row.operatingMarginPercent === null ? "-" : `${row.operatingMarginPercent.toFixed(1)}%`}</strong></div>)}</div>;
 }
 
+function financialPeriodLabel(row: CompanyFinancialPeriod, mode: "annual" | "quarterly") {
+  if (mode === "annual") return row.periodEnd.slice(0, 4);
+  return row.periodEnd.length >= 7 ? row.periodEnd.slice(2, 7).replace("-", ".") : row.periodEnd;
+}
+
+function CompanyFinancialChart({ annual, quarterly, currency }: { annual: CompanyFinancialPeriod[]; quarterly: CompanyFinancialPeriod[]; currency: string }) {
+  const [mode, setMode] = useState<"annual" | "quarterly">("quarterly");
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const source = mode === "annual" ? annual : quarterly;
+  const points = source
+    .filter((row) => row.revenue !== null || row.operatingIncome !== null)
+    .slice(0, mode === "annual" ? 5 : 8)
+    .reverse();
+  if (!points.length) return <div className="company-profile-inline-empty">차트로 표시할 SEC 재무 데이터가 아직 없습니다.</div>;
+
+  const values = points.flatMap((row) => [row.revenue, row.operatingIncome]).filter((value): value is number => value !== null && Number.isFinite(value));
+  const highest = Math.max(0, ...values);
+  const lowest = Math.min(0, ...values);
+  const max = highest > 0 ? highest * 1.15 : 1;
+  const min = lowest < 0 ? lowest * 1.15 : 0;
+  const range = max - min || 1;
+  const width = 360;
+  const height = 220;
+  const plotLeft = 46;
+  const plotRight = 8;
+  const plotTop = 12;
+  const plotBottom = 38;
+  const plotWidth = width - plotLeft - plotRight;
+  const plotHeight = height - plotTop - plotBottom;
+  const yFor = (value: number) => plotTop + ((max - value) / range) * plotHeight;
+  const zeroY = yFor(0);
+  const groupWidth = plotWidth / points.length;
+  const barWidth = Math.min(18, Math.max(8, groupWidth * 0.28));
+  const gridValues = [max, (max + min) / 2, min];
+  const selected = selectedIndex === null ? null : points[selectedIndex];
+
+  return <div className="company-financial-chart">
+    <header><div><p className="kicker">REVENUE &amp; OPERATING INCOME</p><h4>매출·영업이익 추이</h4></div><div className="company-financial-toggle" role="group" aria-label="재무 차트 기간"><button type="button" className={mode === "annual" ? "active" : ""} aria-pressed={mode === "annual"} onClick={() => { setMode("annual"); setSelectedIndex(null); }}>연간</button><button type="button" className={mode === "quarterly" ? "active" : ""} aria-pressed={mode === "quarterly"} onClick={() => { setMode("quarterly"); setSelectedIndex(null); }}>분기</button></div></header>
+    <div className="company-financial-plot"><svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={`${mode === "annual" ? "연간" : "분기"} 매출과 영업이익 막대 차트`}>
+      {gridValues.map((value, index) => <g key={`${value}-${index}`}><line className={Math.abs(value) < 0.001 ? "company-financial-zero" : "company-financial-grid"} x1={plotLeft} x2={width - plotRight} y1={yFor(value)} y2={yFor(value)} /><text className="company-financial-axis-label" x={plotLeft - 6} y={yFor(value) + 3} textAnchor="end">{financialValue(value, currency)}</text></g>)}
+      {points.map((row, index) => {
+        const center = plotLeft + groupWidth * (index + .5);
+        const revenue = row.revenue;
+        const operatingIncome = row.operatingIncome;
+        const revenueY = revenue === null ? zeroY : yFor(revenue);
+        const operatingY = operatingIncome === null ? zeroY : yFor(operatingIncome);
+        const active = selectedIndex === index;
+        return <g key={`${row.periodEnd}-${row.accession}`} className={`company-financial-bar-group${active ? " active" : ""}`}>
+          {revenue !== null ? <rect className="company-financial-bar revenue" x={center - barWidth - 2} y={Math.min(revenueY, zeroY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - revenueY))} rx="2" /> : null}
+          {operatingIncome !== null ? <rect className={`company-financial-bar operating${operatingIncome < 0 ? " negative" : ""}`} x={center + 2} y={Math.min(operatingY, zeroY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - operatingY))} rx="2" /> : null}
+          <text className="company-financial-x-label" x={center} y={height - 14} textAnchor="middle">{financialPeriodLabel(row, mode)}</text>
+          <rect className="company-financial-hit-area" x={center - groupWidth / 2} y={plotTop} width={groupWidth} height={plotHeight + 18} role="button" tabIndex={0} aria-label={`${financialPeriodLabel(row, mode)}: 매출 ${financialValue(revenue, currency)}, 영업이익 ${financialValue(operatingIncome, currency)}`} onClick={() => setSelectedIndex(active ? null : index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedIndex(active ? null : index); } }} />
+        </g>;
+      })}
+    </svg></div>
+    <div className="company-financial-legend"><span><i className="revenue" />매출</span><span><i className="operating" />영업이익</span><small>막대를 누르면 해당 기간 수치를 확인합니다.</small></div>
+    {selected ? <output className="company-financial-selection"><time dateTime={selected.periodEnd}>{selected.periodEnd} · {selected.form}</time><span>매출 <b>{financialValue(selected.revenue, currency)}</b></span><span>영업이익 <b>{financialValue(selected.operatingIncome, currency)}</b></span></output> : null}
+  </div>;
+}
+
 export function MarketCapDashboard({
   snapshot,
   initialProfileSummaries,
@@ -305,7 +365,7 @@ export function MarketCapDashboard({
       {detailLoading && !selectedProfile ? <div className="company-profile-loading" aria-busy="true"><i /><i /><i /></div> : detailError ? <div className="company-profile-error"><strong>기업 정보를 불러오지 못했습니다.</strong><p>{detailError}</p><button type="button" className="secondary-button" onClick={() => void loadProfile(selectedCompany.symbol, true)}>다시 불러오기</button></div> : <>
         <div className="company-profile-status-row"><span className={(ageLabel(selectedProfile?.profileAnalyzedAt ?? null).days ?? 999) >= 60 ? "stale" : "fresh"}>기업 분석 {ageLabel(selectedProfile?.profileAnalyzedAt ?? null).label}</span><span>재무 확인 {ageLabel(selectedProfile?.financialCheckedAt ?? null).label}</span>{selectedProfile?.financialFilingForm ? <span>{selectedProfile.financialFilingForm} · {selectedProfile.financialFilingDate}</span> : null}</div>
         <section className="company-profile-overview"><div className="company-profile-section-head"><div><p className="kicker">01 · OVERVIEW</p><h3>어떤 기업인가</h3></div><button type="button" className="secondary-button" onClick={() => void startProfileRefresh("single", selectedCompany.symbol)} disabled={!profileMigrationReady || running || profileAction !== "idle"}>{!profileMigrationReady ? "migration 필요" : running && profileRun?.requestedTicker === selectedCompany.symbol ? "갱신 중…" : "이 기업 갱신"}</button></div>{selectedProfile?.narrative?.overview ? <p>{selectedProfile.narrative.overview}</p> : <div className="company-profile-inline-empty">{profileMigrationReady ? "아직 저장된 기업 분석이 없습니다. 이 기업 갱신 버튼을 누르면 최신 SEC 공시를 바탕으로 분석합니다." : "기업 정보 migration을 적용하면 재무·기업 분석을 저장할 수 있습니다."}</div>}{selectedProfile?.profileError ? <small className="company-profile-warning">최근 분석 오류: {selectedProfile.profileError}</small> : null}</section>
-        <section><div className="company-profile-section-head"><div><p className="kicker">02 · FINANCIALS</p><h3>연간·분기 실적</h3></div>{selectedProfile?.financialSourceUrl ? <a href={selectedProfile.financialSourceUrl} target="_blank" rel="noreferrer">SEC Company Facts ↗</a> : null}</div><div className="company-financial-groups"><article><h4>연간</h4><FinancialRows rows={selectedProfile?.financial?.annual ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article><article><h4>분기</h4><FinancialRows rows={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article></div></section>
+        <section><div className="company-profile-section-head"><div><p className="kicker">02 · FINANCIALS</p><h3>연간·분기 실적</h3></div>{selectedProfile?.financialSourceUrl ? <a href={selectedProfile.financialSourceUrl} target="_blank" rel="noreferrer">SEC Company Facts ↗</a> : null}</div><CompanyFinancialChart annual={selectedProfile?.financial?.annual ?? []} quarterly={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /><div className="company-financial-groups"><article><h4>연간</h4><FinancialRows rows={selectedProfile?.financial?.annual ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article><article><h4>분기</h4><FinancialRows rows={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article></div></section>
         <section className="company-profile-two-column"><article><p className="kicker">03 · REVENUE ITEMS</p><h3>주요 매출 아이템</h3>{selectedProfile?.narrative?.revenueItems?.length ? <ul>{selectedProfile.narrative.revenueItems.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article><article><p className="kicker">04 · GROWTH &amp; R&amp;D</p><h3>성장·연구개발 방향</h3>{selectedProfile?.narrative?.growthAndResearch?.length ? <ul>{selectedProfile.narrative.growthAndResearch.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article></section>
         <footer><div><span>기업 분석 {selectedProfile?.profileModel ?? "아직 없음"}</span>{selectedProfile?.profileSourceUrl ? <a href={selectedProfile.profileSourceUrl} target="_blank" rel="noreferrer">분석 근거 공시 ↗</a> : null}</div><a href={selectedCompany.sourceUrl} target="_blank" rel="noreferrer">Nasdaq 종목 페이지 ↗</a></footer>
       </>}
