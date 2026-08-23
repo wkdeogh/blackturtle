@@ -278,12 +278,37 @@ export interface EarningsCalendarEvent {
   source: "Alpha Vantage";
 }
 
+export interface MarketCapitalizationItem {
+  rank: number;
+  previousRank: number | null;
+  rankChange: number | null;
+  symbol: string;
+  name: string;
+  marketCap: number;
+  previousMarketCap: number | null;
+  marketCapChangePercent: number | null;
+  lastPrice: number | null;
+  dayChangePercent: number | null;
+  sector: string;
+  industry: string;
+  country: string;
+  sourceUrl: string;
+}
+
+export interface MarketCapitalizationSnapshot {
+  provider: "Nasdaq Screener";
+  updatedAt: string;
+  universeCount: number;
+  items: MarketCapitalizationItem[];
+}
+
 export interface MarketResearchPayload {
   updatedAt?: string;
   portfolioPrices: PortfolioPrice[];
   secFilings: SecFiling[];
   fundamentals: CompanyFundamentalSnapshot[];
   earningsEvents: EarningsCalendarEvent[];
+  marketCapitalization: MarketCapitalizationSnapshot | null;
   statuses: DataSourceStatus[];
   warnings: string[];
 }

@@ -24,12 +24,12 @@ interface AnalysisPreview {
   model: string;
   estimatedInputTokens: number;
   maxOutputTokens: number;
-  dataCounts: { macro: number; market: number; posts: number; portfolio: number; events: number };
+  dataCounts: { macro: number; market: number; marketCaps: number; posts: number; portfolio: number; events: number };
 }
 
 const TARGET_OPTIONS: Array<{ id: RefreshTarget | "analysis"; label: string; description: string }> = [
   { id: "macro", label: "매크로", description: "경제지표·일정·원유수급·CFTC" },
-  { id: "market", label: "시장지수", description: "가격·내부신호·포트폴리오·SEC" },
+  { id: "market", label: "시장·시총", description: "지수·시가총액·포트폴리오·SEC" },
   { id: "social", label: "모니터링", description: "X 수집·기업 감성·주제 분석" },
   { id: "analysis", label: "종합분석", description: "새 저장 데이터로 AI 리포트 작성" },
 ];

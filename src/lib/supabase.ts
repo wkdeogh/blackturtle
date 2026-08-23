@@ -174,6 +174,7 @@ const EMPTY_MARKET_RESEARCH: MarketResearchPayload = {
   secFilings: [],
   fundamentals: [],
   earningsEvents: [],
+  marketCapitalization: null,
   statuses: [],
   warnings: [],
 };

@@ -2,6 +2,7 @@ import { collectCftcPositioning } from "@/lib/cftc-positioning";
 import { collectEarningsCalendar } from "@/lib/earnings-calendar";
 import { collectEconomicCalendar } from "@/lib/economic-calendar";
 import { collectEiaEnergy } from "@/lib/eia-energy";
+import { collectNasdaqMarketCapitalization } from "@/lib/nasdaq-market-cap";
 import { collectSecFilings } from "@/lib/sec-filings";
 import type { DataSourceStatus, MacroResearchPayload, MarketResearchPayload, MarketSeries, PortfolioItem, PortfolioPrice } from "@/lib/types";
 
@@ -125,7 +126,8 @@ export async function collectMarketResearchData(
 
   const secPromise = !tickers.length || !secUserAgent ? Promise.resolve(null) : collectSecFilings(tickers, secUserAgent);
   const earningsPromise = !tickers.length || !alphaVantageApiKey ? Promise.resolve(null) : collectEarningsCalendar(alphaVantageApiKey, tickers);
-  const [secResult, earningsResult] = await Promise.allSettled([secPromise, earningsPromise]);
+  const marketCapPromise = collectNasdaqMarketCapitalization(previous.marketCapitalization ?? null);
+  const [secResult, earningsResult, marketCapResult] = await Promise.allSettled([secPromise, earningsPromise, marketCapPromise]);
   const warnings = [...priceWarnings];
   const statuses: DataSourceStatus[] = [];
 
@@ -167,12 +169,23 @@ export async function collectMarketResearchData(
     statuses.push({ source: "earnings", label: "실적 일정", state: earningsEvents.length ? "stale" : "error", updatedAt: previous.updatedAt, observationDate: earningsEvents[0]?.reportDate, message });
   }
 
+  let marketCapitalization = previous.marketCapitalization ?? null;
+  if (marketCapResult.status === "fulfilled") {
+    marketCapitalization = marketCapResult.value;
+    statuses.push({ source: "nasdaq_market_cap", label: "미국주식 시가총액", state: "fresh", updatedAt: marketCapResult.value.updatedAt });
+  } else {
+    const message = errorText(marketCapResult.reason);
+    warnings.push(`미국주식 시가총액: ${marketCapitalization ? "이전 값 유지 · " : "수집 실패 · "}${message}`);
+    statuses.push({ source: "nasdaq_market_cap", label: "미국주식 시가총액", state: marketCapitalization ? "stale" : "error", updatedAt: marketCapitalization?.updatedAt ?? previous.updatedAt, message });
+  }
+
   return {
     updatedAt: statuses.some((status) => status.state === "fresh") ? now : previous.updatedAt,
     portfolioPrices,
     secFilings,
     fundamentals,
     earningsEvents,
+    marketCapitalization,
     statuses,
     warnings: [...new Set(warnings)].slice(0, 40),
     metrics: {
@@ -183,6 +196,8 @@ export async function collectMarketResearchData(
       fundamentals: fundamentals.length,
       earningsRequests: alphaVantageApiKey && tickers.length ? 1 : 0,
       earningsEvents: earningsEvents.length,
+      marketCapRequests: 1,
+      marketCapCompanies: marketCapitalization?.items.length ?? 0,
       warnings: warnings.length,
     },
   };

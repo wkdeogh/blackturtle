@@ -10,13 +10,15 @@ import { TurtleLogo } from "@/components/turtle-logo";
 
 const NAV_ITEMS = [
   { href: "/macro", label: "시장 데이터", related: ["/market", "/regime", "/portfolio", "/events"] },
+  { href: "/market-cap", label: "시가총액" },
   { href: "/social", label: "X 모니터링", related: ["/history", "/settings"] },
   { href: "/analysis", label: "종합분석" },
 ];
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const navigation = NAV_ITEMS.map((item) => <Link className={pathname.startsWith(item.href) || item.related?.some((path) => pathname.startsWith(path)) ? "active" : ""} href={item.href} prefetch key={item.href}>{item.label}</Link>);
+  const matches = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const navigation = NAV_ITEMS.map((item) => <Link className={matches(item.href) || item.related?.some(matches) ? "active" : ""} href={item.href} prefetch key={item.href}>{item.label}</Link>);
   return (
     <>
       <header className="site-header">

@@ -127,6 +127,7 @@ export async function POST(request: Request) {
       dataCounts: {
         macro: snapshot.payload.macro.length,
         market: (snapshot.payload.market?.series.length ?? 0) + (snapshot.payload.market?.countryEtfs.length ?? 0),
+        marketCaps: research.market.marketCapitalization?.items.length ?? 0,
         posts: snapshot.payload.social.posts.length,
         portfolio: portfolio.items.length,
         events: research.macro.economicEvents.length + research.market.earningsEvents.length + research.market.secFilings.length,
