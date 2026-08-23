@@ -9,6 +9,7 @@ import { analyzeTopicsWithOpenAI, TOPIC_ANALYSIS_PROMPT_VERSION } from "@/lib/to
 import type { DashboardSnapshot, MacroSeries, MarketSeries, MarketSnapshot, PortfolioItem, RefreshSource, RefreshTarget, SocialCollectionScope, SocialRefreshMode, TopicSummary } from "@/lib/types";
 import { finalizeXCollection, finalizeXCollectionWithoutAnalysis, prepareXCollection, prepareXTickerCollection, type PreparedXCollection, type RawSocialPost } from "@/lib/x-api";
 import { queueLatestComprehensiveAnalysis } from "@/workflows/comprehensive-analysis";
+import { syncTopCompanyFinancials } from "@/workflows/company-profiles";
 import { sleep } from "workflow";
 
 interface SocialWorkflowContext {
@@ -203,6 +204,25 @@ async function collectAndStoreMarketResearch(
 
 // SEC·실적 일정의 일시 오류 때문에 가격 스냅샷 전체를 재호출하지 않는다.
 collectAndStoreMarketResearch.maxRetries = 0;
+
+async function recordCompanyFinancialSyncFailure(runId: string, error: unknown) {
+  "use step";
+  await recordRefreshMetric(runId, "company_financials", {
+    completed: 0,
+    failed: 0,
+    skipped: true,
+    warning: refreshErrorMessage(error),
+  });
+}
+
+async function syncCompanyFinancialResearch(runId: string) {
+  try {
+    await syncTopCompanyFinancials(runId);
+  } catch (error) {
+    // SEC 또는 신규 migration 문제로 기존 시장지수 갱신까지 실패시키지 않는다.
+    await recordCompanyFinancialSyncFailure(runId, error);
+  }
+}
 
 async function getRefreshDraft(runId: string): Promise<DashboardSnapshot | null> {
   const supabase = getSupabaseAdmin();
@@ -594,6 +614,8 @@ export async function refreshDataWorkflow(
         );
         stage = "선택 갱신 · 관심종목 공시·실적 일정";
         await collectAndStoreMarketResearch(runId, portfolioItems, portfolio.series, portfolio.warnings);
+        stage = "선택 갱신 · 시가총액 TOP200 재무 확인";
+        await syncCompanyFinancialResearch(runId);
       }
 
       if (targets.has("social")) {
@@ -678,6 +700,8 @@ export async function refreshDataWorkflow(
       );
       stage = "관심종목 공시·실적 일정";
       await collectAndStoreMarketResearch(runId, portfolioItems, portfolio.series, portfolio.warnings);
+      stage = "시가총액 TOP200 재무 확인";
+      await syncCompanyFinancialResearch(runId);
     } else if (socialMode === "collect_only") {
       stage = "X 게시물만 수집";
       const context = await collectSocialPosts(undefined, socialScope);

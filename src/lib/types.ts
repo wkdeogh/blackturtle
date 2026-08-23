@@ -302,6 +302,83 @@ export interface MarketCapitalizationSnapshot {
   items: MarketCapitalizationItem[];
 }
 
+export interface CompanyFinancialPeriod {
+  periodEnd: string;
+  filedAt: string;
+  form: string;
+  accession: string;
+  revenue: number | null;
+  operatingIncome: number | null;
+  operatingMarginPercent: number | null;
+  derived?: boolean;
+}
+
+export interface CompanyFinancialPayload {
+  currency: string;
+  annual: CompanyFinancialPeriod[];
+  quarterly: CompanyFinancialPeriod[];
+}
+
+export interface CompanyProfileNarrativeItem {
+  title: string;
+  description: string;
+}
+
+export interface CompanyProfileNarrative {
+  overview: string;
+  revenueItems: CompanyProfileNarrativeItem[];
+  growthAndResearch: CompanyProfileNarrativeItem[];
+}
+
+export interface CompanyProfileSummary {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  industry: string;
+  country: string;
+  financialCheckedAt: string | null;
+  financialUpdatedAt: string | null;
+  financialFilingAccession: string | null;
+  financialFilingForm: string | null;
+  financialFilingDate: string | null;
+  profileAnalyzedAt: string | null;
+  profileModel: string | null;
+  profilePromptVersion: number | null;
+  profileSourceFilingDate: string | null;
+  profileError: string | null;
+}
+
+export interface CompanyProfileDetail extends CompanyProfileSummary {
+  financial: CompanyFinancialPayload | null;
+  financialSourceUrl: string | null;
+  narrative: CompanyProfileNarrative | null;
+  profileSourceAccession: string | null;
+  profileSourceUrl: string | null;
+}
+
+export type CompanyProfileRefreshMode = "bulk" | "single";
+export type CompanyProfileRefreshState = "running" | "success" | "partial" | "failed";
+export type CompanyProfileRefreshStage = "queued" | "financials" | "analyzing" | "saving" | "completed" | "failed";
+
+export interface CompanyProfileRefreshRun {
+  id: string;
+  mode: CompanyProfileRefreshMode;
+  requestedTicker: string | null;
+  status: CompanyProfileRefreshState;
+  stage: CompanyProfileRefreshStage;
+  workflowRunId: string | null;
+  model: string;
+  promptVersion: number;
+  totalCount: number;
+  completedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  estimatedInputTokens: number;
+  startedAt: string;
+  finishedAt: string | null;
+  error: string | null;
+}
+
 export interface MarketResearchPayload {
   updatedAt?: string;
   portfolioPrices: PortfolioPrice[];

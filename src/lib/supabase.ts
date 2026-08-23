@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { parseDashboardSnapshot } from "@/lib/snapshot-schema";
-import type { ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, InvestorResearchState, MacroResearchPayload, MarketResearchPayload, PortfolioItem, RefreshMetricsRecord, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
+import type { CompanyFinancialCollection } from "@/lib/company-financials";
+import type { CompanyProfileDetail, CompanyProfileNarrative, CompanyProfileRefreshRun, CompanyProfileSummary, ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, InvestorResearchState, MacroResearchPayload, MarketCapitalizationItem, MarketResearchPayload, PortfolioItem, RefreshMetricsRecord, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -232,6 +233,208 @@ export async function saveMarketResearchPayload(payload: MarketResearchPayload):
     throw new Error(`시장 리서치 저장 실패: ${error.message}`);
   }
   return true;
+}
+
+function mapCompanyProfileSummary(row: Record<string, unknown>): CompanyProfileSummary {
+  return {
+    ticker: row.ticker as string,
+    companyName: (row.company_name as string | null | undefined) ?? (row.ticker as string),
+    sector: (row.sector as string | null | undefined) ?? "",
+    industry: (row.industry as string | null | undefined) ?? "",
+    country: (row.country as string | null | undefined) ?? "",
+    financialCheckedAt: (row.financial_checked_at as string | null | undefined) ?? null,
+    financialUpdatedAt: (row.financial_updated_at as string | null | undefined) ?? null,
+    financialFilingAccession: (row.financial_filing_accession as string | null | undefined) ?? null,
+    financialFilingForm: (row.financial_filing_form as string | null | undefined) ?? null,
+    financialFilingDate: (row.financial_filing_date as string | null | undefined) ?? null,
+    profileAnalyzedAt: (row.profile_analyzed_at as string | null | undefined) ?? null,
+    profileModel: (row.profile_model as string | null | undefined) ?? null,
+    profilePromptVersion: row.profile_prompt_version === null || row.profile_prompt_version === undefined ? null : Number(row.profile_prompt_version),
+    profileSourceFilingDate: (row.profile_source_filing_date as string | null | undefined) ?? null,
+    profileError: (row.profile_error as string | null | undefined) ?? null,
+  };
+}
+
+function mapCompanyProfileRun(row: Record<string, unknown>): CompanyProfileRefreshRun {
+  return {
+    id: row.id as string,
+    mode: row.mode === "single" ? "single" : "bulk",
+    requestedTicker: (row.requested_ticker as string | null | undefined) ?? null,
+    status: row.status as CompanyProfileRefreshRun["status"],
+    stage: row.stage as CompanyProfileRefreshRun["stage"],
+    workflowRunId: (row.workflow_run_id as string | null | undefined) ?? null,
+    model: row.model as string,
+    promptVersion: Number(row.prompt_version ?? 0),
+    totalCount: Number(row.total_count ?? 0),
+    completedCount: Number(row.completed_count ?? 0),
+    failedCount: Number(row.failed_count ?? 0),
+    skippedCount: Number(row.skipped_count ?? 0),
+    estimatedInputTokens: Number(row.estimated_input_tokens ?? 0),
+    startedAt: row.started_at as string,
+    finishedAt: (row.finished_at as string | null | undefined) ?? null,
+    error: (row.error_summary as string | null | undefined) ?? null,
+  };
+}
+
+const COMPANY_PROFILE_SUMMARY_COLUMNS = "ticker, company_name, sector, industry, country, financial_checked_at, financial_updated_at, financial_filing_accession, financial_filing_form, financial_filing_date, profile_analyzed_at, profile_model, profile_prompt_version, profile_source_filing_date, profile_error";
+const COMPANY_PROFILE_RUN_COLUMNS = "id, mode, requested_ticker, status, stage, workflow_run_id, model, prompt_version, total_count, completed_count, failed_count, skipped_count, estimated_input_tokens, started_at, finished_at, error_summary";
+
+export async function getCompanyProfilesState(): Promise<{ migrationReady: boolean; summaries: CompanyProfileSummary[]; latestRun: CompanyProfileRefreshRun | null }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, summaries: [], latestRun: null };
+  const [profileResult, runResult] = await Promise.all([
+    supabase.from("company_profiles").select(COMPANY_PROFILE_SUMMARY_COLUMNS).order("ticker"),
+    supabase.from("company_profile_runs").select(COMPANY_PROFILE_RUN_COLUMNS).order("started_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const missing = [profileResult.error, runResult.error].some((error) => error?.code === "42P01" || error?.code === "PGRST205");
+  if (missing) return { migrationReady: false, summaries: [], latestRun: null };
+  if (profileResult.error) throw new Error(`기업 정보 목록 조회 실패: ${profileResult.error.message}`);
+  if (runResult.error) throw new Error(`기업 정보 갱신 상태 조회 실패: ${runResult.error.message}`);
+  return {
+    migrationReady: true,
+    summaries: (profileResult.data ?? []).map((row) => mapCompanyProfileSummary(row)),
+    latestRun: runResult.data ? mapCompanyProfileRun(runResult.data) : null,
+  };
+}
+
+export async function getCompanyProfileDetail(ticker: string): Promise<{ migrationReady: boolean; profile: CompanyProfileDetail | null }> {
+  const normalized = ticker.trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(normalized)) return { migrationReady: true, profile: null };
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { migrationReady: false, profile: null };
+  const { data, error } = await supabase.from("company_profiles")
+    .select(`${COMPANY_PROFILE_SUMMARY_COLUMNS}, financial_payload, financial_source_url, profile_payload, profile_source_accession, profile_source_url`)
+    .eq("ticker", normalized)
+    .maybeSingle();
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return { migrationReady: false, profile: null };
+    throw new Error(`기업 정보 조회 실패: ${error.message}`);
+  }
+  if (!data) return { migrationReady: true, profile: null };
+  return {
+    migrationReady: true,
+    profile: {
+      ...mapCompanyProfileSummary(data),
+      financial: (data.financial_payload as CompanyProfileDetail["financial"] | undefined) ?? null,
+      financialSourceUrl: (data.financial_source_url as string | null | undefined) ?? null,
+      narrative: (data.profile_payload as CompanyProfileDetail["narrative"] | undefined) ?? null,
+      profileSourceAccession: (data.profile_source_accession as string | null | undefined) ?? null,
+      profileSourceUrl: (data.profile_source_url as string | null | undefined) ?? null,
+    },
+  };
+}
+
+export async function seedCompanyProfileMetadata(companies: MarketCapitalizationItem[]): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  if (!companies.length) return true;
+  const rows = companies.slice(0, 200).map((company) => ({
+    ticker: company.symbol,
+    company_name: company.name,
+    sector: company.sector,
+    industry: company.industry,
+    country: company.country,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase.from("company_profiles").upsert(rows, { onConflict: "ticker" });
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return false;
+    throw new Error(`기업 정보 기본 데이터 저장 실패: ${error.message}`);
+  }
+  return true;
+}
+
+export async function saveCompanyFinancialBatch(
+  companies: MarketCapitalizationItem[],
+  results: CompanyFinancialCollection[],
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  const tickers = companies.map((company) => company.symbol);
+  if (!tickers.length) return true;
+  const existingResult = await supabase.from("company_profiles")
+    .select("ticker, financial_payload, financial_checked_at, financial_updated_at, financial_filing_accession, financial_filing_form, financial_filing_date, financial_source_url")
+    .in("ticker", tickers);
+  if (existingResult.error) {
+    if (existingResult.error.code === "42P01" || existingResult.error.code === "PGRST205") return false;
+    throw new Error(`기존 기업 재무 조회 실패: ${existingResult.error.message}`);
+  }
+  const existing = new Map((existingResult.data ?? []).map((row) => [row.ticker as string, row]));
+  const resultByTicker = new Map(results.map((result) => [result.ticker, result]));
+  const now = new Date().toISOString();
+  const rows = companies.map((company) => {
+    const result = resultByTicker.get(company.symbol);
+    const previous = existing.get(company.symbol);
+    const nextPayload = result?.financial ?? previous?.financial_payload ?? null;
+    const nextAccession = result?.filingAccession ?? previous?.financial_filing_accession ?? null;
+    const changed = Boolean(result?.financial) && (
+      nextAccession !== (previous?.financial_filing_accession ?? null)
+      || JSON.stringify(nextPayload) !== JSON.stringify(previous?.financial_payload ?? null)
+    );
+    return {
+      ticker: company.symbol,
+      company_name: result?.companyName || company.name,
+      sector: company.sector,
+      industry: company.industry,
+      country: company.country,
+      cik: result?.cik ?? null,
+      financial_payload: nextPayload,
+      financial_checked_at: result?.checkedAt ?? previous?.financial_checked_at ?? null,
+      financial_updated_at: changed ? now : previous?.financial_updated_at ?? (result?.financial ? now : null),
+      financial_filing_accession: nextAccession,
+      financial_filing_form: result?.filingForm ?? previous?.financial_filing_form ?? null,
+      financial_filing_date: result?.filingDate ?? previous?.financial_filing_date ?? null,
+      financial_source_url: result?.sourceUrl ?? previous?.financial_source_url ?? null,
+      updated_at: now,
+    };
+  });
+  const { error } = await supabase.from("company_profiles").upsert(rows, { onConflict: "ticker" });
+  if (error) throw new Error(`기업 재무 저장 실패: ${error.message}`);
+  return true;
+}
+
+export async function saveCompanyProfileNarrative(
+  company: MarketCapitalizationItem,
+  narrative: CompanyProfileNarrative,
+  source: { accession: string; filedAt: string; sourceUrl: string },
+  model: string,
+  promptVersion: number,
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("company_profiles").upsert({
+    ticker: company.symbol,
+    company_name: company.name,
+    sector: company.sector,
+    industry: company.industry,
+    country: company.country,
+    profile_payload: narrative,
+    profile_analyzed_at: now,
+    profile_model: model,
+    profile_prompt_version: promptVersion,
+    profile_source_accession: source.accession,
+    profile_source_filing_date: source.filedAt,
+    profile_source_url: source.sourceUrl,
+    profile_error: null,
+    updated_at: now,
+  }, { onConflict: "ticker" });
+  if (error) throw new Error(`기업 분석 저장 실패: ${error.message}`);
+}
+
+export async function saveCompanyProfileError(company: MarketCapitalizationItem, message: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { error } = await supabase.from("company_profiles").upsert({
+    ticker: company.symbol,
+    company_name: company.name,
+    sector: company.sector,
+    industry: company.industry,
+    country: company.country,
+    profile_error: message.slice(0, 1_200),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "ticker" });
+  if (error) throw new Error(`기업 분석 오류 저장 실패: ${error.message}`);
 }
 
 function mapPortfolioItem(row: Record<string, unknown>): PortfolioItem {

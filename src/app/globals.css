@@ -784,12 +784,12 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .market-cap-copy:hover, .market-cap-copy:focus-visible { border-color: var(--green-2); background: var(--hover-bg); }
 .market-cap-copy:disabled { color: var(--muted); background: var(--subtle-bg); cursor: not-allowed; opacity: .65; }
 .market-cap-copy:active:not(:disabled) { transform: translateY(1px); }
-.market-cap-table-head, .market-cap-list a { display: grid; grid-template-columns: 58px minmax(220px, 1.45fr) minmax(120px, .7fr) minmax(105px, .55fr) minmax(145px, .65fr) 18px; gap: 13px; align-items: center; }
+.market-cap-table-head, .market-cap-row { display: grid; grid-template-columns: 58px minmax(220px, 1.45fr) minmax(120px, .7fr) minmax(105px, .55fr) minmax(145px, .65fr) 18px; gap: 13px; align-items: center; }
 .market-cap-table-head { min-height: 38px; border-bottom: 1px solid var(--line); padding: 0 17px; color: var(--muted); font-size: 7px; font-weight: 900; letter-spacing: .07em; }
 .market-cap-list { margin: 0; padding: 0; list-style: none; }
 .market-cap-list li + li { border-top: 1px solid var(--line); }
-.market-cap-list a { min-height: 82px; padding: 10px 17px; text-decoration: none; }
-.market-cap-list a:hover { background: var(--hover-bg); }
+.market-cap-row { width: 100%; min-height: 82px; border: 0; padding: 10px 17px; color: var(--ink); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.market-cap-row:hover, .market-cap-row:focus-visible { background: var(--hover-bg); }
 .market-cap-rank { display: flex; align-items: center; gap: 7px; }
 .market-cap-rank > strong { width: 25px; font-family: Georgia, serif; font-size: 20px; font-weight: 500; text-align: right; }
 .rank-move { min-width: 20px; color: var(--muted); font-size: 7px; font-weight: 950; white-space: nowrap; }
@@ -811,6 +811,35 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .market-cap-more button { min-height: 38px; border: 1px solid var(--line); border-radius: 9px; padding: 0 15px; color: var(--ink); background: var(--card); font-size: 9px; font-weight: 900; cursor: pointer; }
 .market-cap-more button:hover { border-color: var(--green-2); background: var(--hover-bg); }
 .market-cap-source-note { margin: 13px 4px 0; color: var(--muted); font-size: 8px; line-height: 1.6; }
+.company-profile-sync { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 24px; align-items: center; margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid var(--green-2); border-radius: 14px; padding: 17px 18px; background: var(--card); box-shadow: var(--shadow); }
+.company-profile-sync.running { border-left-color: var(--amber); }
+.company-profile-sync h2 { margin: 4px 0 3px; font-family: Georgia, serif; font-size: 22px; font-weight: 500; }
+.company-profile-sync > div > p:last-child { margin: 0; color: var(--muted); font-size: 8px; }
+.company-profile-sync dl { display: flex; margin: 0; }
+.company-profile-sync dl > div { min-width: 72px; border-left: 1px solid var(--line); padding: 2px 13px; }
+.company-profile-sync dt { color: var(--muted); font-size: 7px; }.company-profile-sync dd { margin: 4px 0 0; font-size: 12px; font-weight: 900; }
+.company-profile-sync > button { min-width: 155px; }
+.company-profile-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(4, 8, 6, .72); backdrop-filter: blur(6px); }
+.company-profile-modal, .company-profile-confirm { width: min(980px, 100%); max-height: calc(100svh - 36px); overflow-y: auto; border: 1px solid var(--line); border-radius: 20px; padding: 25px; background: var(--card); box-shadow: 0 28px 90px rgba(0,0,0,.45); }
+.company-profile-confirm { width: min(540px, 100%); }
+.company-profile-confirm > h2 { margin: 7px 0 8px; font-family: Georgia, serif; font-size: 28px; font-weight: 500; }
+.company-profile-confirm > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.7; }
+.company-profile-confirm-count { display: flex; align-items: baseline; gap: 9px; margin: 23px 0 16px; }.company-profile-confirm-count strong { color: var(--green-2); font-family: Georgia, serif; font-size: 58px; font-weight: 500; }.company-profile-confirm-count span { color: var(--muted); font-size: 10px; font-weight: 900; }
+.company-profile-confirm dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--line); }.company-profile-confirm dl > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--subtle-bg); }.company-profile-confirm dt { color: var(--muted); font-size: 8px; }.company-profile-confirm dd { margin: 0; font-size: 9px; font-weight: 900; text-align: right; }
+.company-profile-confirm aside { margin-top: 13px; border-left: 2px solid var(--amber); padding: 10px 12px; color: var(--muted); background: color-mix(in srgb, var(--amber) 6%, var(--card)); font-size: 8px; line-height: 1.7; }.company-profile-confirm > div:last-child { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 17px; }
+.company-profile-modal > header { display: flex; align-items: start; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+.company-profile-modal > header h2 { display: flex; align-items: baseline; gap: 10px; margin: 5px 0 3px; font-family: Georgia, serif; font-size: 29px; font-weight: 500; }.company-profile-modal > header h2 span { color: var(--green-2); }.company-profile-modal > header p:last-child { margin: 0; color: var(--muted); font-size: 8px; }
+.company-profile-modal > header > button { width: 36px; height: 36px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--subtle-bg); font-size: 22px; cursor: pointer; }
+.company-profile-status-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 15px 0; }.company-profile-status-row span { border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px; color: var(--muted); background: var(--subtle-bg); font-size: 7px; font-weight: 850; }.company-profile-status-row span.fresh { color: var(--green-2); border-color: color-mix(in srgb, var(--green-2) 45%, var(--line)); }.company-profile-status-row span.stale { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.company-profile-modal > section { border-top: 1px solid var(--line); padding: 21px 0; }.company-profile-modal > .company-profile-overview { border-top: 0; }.company-profile-modal h3 { margin: 5px 0 0; font-family: Georgia, serif; font-size: 21px; font-weight: 500; }
+.company-profile-section-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }.company-profile-section-head a { color: var(--green-2); font-size: 8px; font-weight: 850; }.company-profile-overview > p { margin: 15px 0 0; color: var(--ink); font-size: 10px; line-height: 1.9; white-space: pre-wrap; }
+.company-profile-inline-empty { border: 1px dashed var(--line); border-radius: 9px; padding: 13px; color: var(--muted); background: var(--subtle-bg); font-size: 8px; line-height: 1.7; }.company-profile-overview .company-profile-inline-empty { margin-top: 14px; }
+.company-profile-warning { display: block; margin-top: 10px; color: var(--red); font-size: 7px; }
+.company-financial-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 15px; }.company-financial-groups article { min-width: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.company-financial-groups h4 { margin: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; font-size: 9px; }
+.company-financial-head, .company-financial-row { display: grid; grid-template-columns: minmax(74px, .8fr) repeat(3, minmax(78px, 1fr)); gap: 8px; align-items: center; padding: 8px 10px; }.company-financial-head { color: var(--muted); background: var(--subtle-bg); font-size: 6px; font-weight: 900; }.company-financial-row + .company-financial-row { border-top: 1px solid var(--line); }.company-financial-row > span b, .company-financial-row > span small { display: block; }.company-financial-row > span b { font-size: 8px; }.company-financial-row > span small { margin-top: 2px; color: var(--muted); font-size: 6px; }.company-financial-row > strong { overflow: hidden; font-size: 8px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.company-financial-table > .company-profile-inline-empty { border: 0; border-radius: 0; }
+.company-profile-two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }.company-profile-two-column > article { min-width: 0; }.company-profile-two-column ul { margin: 15px 0 0; padding: 0; list-style: none; }.company-profile-two-column li { border-left: 2px solid var(--green-2); padding: 3px 0 3px 11px; }.company-profile-two-column li + li { margin-top: 13px; }.company-profile-two-column li strong { font-size: 9px; }.company-profile-two-column li p { margin: 4px 0 0; color: var(--muted); font-size: 8px; line-height: 1.7; }
+.company-profile-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; border-top: 1px solid var(--line); padding-top: 16px; }.company-profile-modal > footer div { display: flex; flex-wrap: wrap; gap: 9px; }.company-profile-modal > footer span { color: var(--muted); font-size: 7px; }.company-profile-modal > footer a { color: var(--green-2); font-size: 8px; font-weight: 850; }
+.company-profile-loading { display: grid; gap: 11px; min-height: 380px; align-content: center; padding: 30px; }.company-profile-loading i { height: 68px; border-radius: 12px; background: linear-gradient(90deg, var(--subtle-bg), var(--hover-bg), var(--subtle-bg)); background-size: 200% 100%; animation: skeletonMove 1.2s linear infinite; }.company-profile-error { min-height: 300px; display: grid; place-items: center; align-content: center; text-align: center; }.company-profile-error p { color: var(--muted); font-size: 9px; }
 .portfolio-add-card { align-items: center; color: var(--green-2); border-style: dashed; cursor: pointer; }.portfolio-add-card:hover { border-color: var(--green-2); background: var(--mint); }.portfolio-add-card b { font-size: 25px; }.portfolio-add-card span { font-size: 10px; font-weight: 900; }.portfolio-add-card small { color: var(--muted); font-size: 7px; }
 .portfolio-empty { margin-top: 14px; }.portfolio-empty strong { color: var(--ink); font-size: 17px; }.portfolio-empty p { margin: 6px 0 16px; }
 .portfolio-list { display: grid; gap: 14px; margin-top: 18px; }
@@ -948,7 +977,9 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .market-cap-search { grid-column: 1; }
   .market-cap-copy { grid-column: 2; }
   .market-cap-sector { grid-column: 1 / -1; }
-  .market-cap-table-head, .market-cap-list a { grid-template-columns: 52px minmax(180px, 1.3fr) minmax(100px, .65fr) minmax(95px, .55fr) minmax(130px, .65fr) 14px; gap: 9px; }
+  .market-cap-table-head, .market-cap-row { grid-template-columns: 52px minmax(180px, 1.3fr) minmax(100px, .65fr) minmax(95px, .55fr) minmax(130px, .65fr) 14px; gap: 9px; }
+  .company-profile-sync { grid-template-columns: minmax(0, 1fr) auto; }.company-profile-sync > button { grid-column: 1 / -1; width: 100%; }
+  .company-financial-groups { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 680px) {
@@ -1108,7 +1139,7 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .market-cap-search, .market-cap-copy, .market-cap-sector { grid-column: auto; }
   .market-cap-copy { width: 100%; }
   .market-cap-table-head { display: none; }
-  .market-cap-list a { min-height: 94px; grid-template-columns: 32px minmax(0, 1fr) minmax(86px, auto) 12px; grid-template-rows: auto auto; gap: 5px 8px; padding: 11px 10px; }
+  .market-cap-row { min-height: 94px; grid-template-columns: 32px minmax(0, 1fr) minmax(86px, auto) 12px; grid-template-rows: auto auto; gap: 5px 8px; padding: 11px 10px; }
   .market-cap-rank { grid-column: 1; grid-row: 1 / 3; align-items: flex-start; flex-direction: column; gap: 2px; }
   .market-cap-rank > strong { width: auto; font-size: 19px; text-align: left; }
   .market-cap-company { grid-column: 2; grid-row: 1; grid-template-columns: auto minmax(0, 1fr); gap: 0 7px; }
@@ -1118,6 +1149,8 @@ html[data-theme="light"] .rank { color: #7b8780; }
   .market-cap-value { grid-column: 3; grid-row: 1 / 3; justify-self: end; align-self: center; }
   .market-cap-value strong { font-size: 17px; }.market-cap-value span { font-size: 6.5px; }
   .market-cap-link { grid-column: 4; grid-row: 1 / 3; }
+  .company-profile-sync { grid-template-columns: 1fr; gap: 14px; padding: 15px; }.company-profile-sync dl { display: grid; grid-template-columns: repeat(3, 1fr); }.company-profile-sync dl > div { min-width: 0; padding: 2px 9px; }.company-profile-sync dl > div:first-child { border-left: 0; padding-left: 0; }
+  .company-profile-backdrop { align-items: end; padding: 0; }.company-profile-modal, .company-profile-confirm { width: 100%; max-height: 94svh; border-radius: 19px 19px 0 0; border-bottom: 0; padding: 20px 15px calc(20px + env(safe-area-inset-bottom)); }.company-profile-modal > header h2 { align-items: start; flex-direction: column; gap: 1px; font-size: 25px; }.company-profile-status-row { margin: 12px 0; }.company-profile-section-head { align-items: stretch; flex-direction: column; }.company-profile-section-head > button { width: 100%; }.company-profile-two-column { grid-template-columns: 1fr; gap: 25px; }.company-profile-modal > footer { align-items: flex-start; flex-direction: column; }.company-profile-confirm dl { grid-template-columns: 1fr; }.company-profile-confirm > div:last-child { grid-template-columns: 1fr; }.company-financial-head, .company-financial-row { grid-template-columns: minmax(72px, .9fr) repeat(3, minmax(67px, 1fr)); gap: 5px; padding: 8px; }.company-financial-row > strong { font-size: 7px; }
   .portfolio-item { padding: 15px 12px; }
   .portfolio-item > header { gap: 8px; }
   .portfolio-item h2 { align-items: start; flex-direction: column; gap: 0; font-size: 25px; }

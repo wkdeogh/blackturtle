@@ -4,19 +4,22 @@ import { MarketCapDashboard } from "@/components/market-cap-dashboard";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { formatDateTime } from "@/lib/format";
-import { getInvestorResearchState, getLatestRefreshRun } from "@/lib/supabase";
+import { getCompanyProfilesState, getInvestorResearchState, getLatestRefreshRun } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketCapPage() {
   let research = null;
   let latestRun = null;
+  let companyProfiles = { migrationReady: false, summaries: [], latestRun: null } as Awaited<ReturnType<typeof getCompanyProfilesState>>;
   let databaseError = "";
-  const [researchResult, runResult] = await Promise.allSettled([getInvestorResearchState(), getLatestRefreshRun()]);
+  const [researchResult, runResult, companyProfileResult] = await Promise.allSettled([getInvestorResearchState(), getLatestRefreshRun(), getCompanyProfilesState()]);
   if (researchResult.status === "fulfilled") research = researchResult.value;
   else databaseError = researchResult.reason instanceof Error ? researchResult.reason.message : "데이터베이스에 연결하지 못했습니다.";
   if (runResult.status === "fulfilled") latestRun = runResult.value;
   else if (!databaseError) databaseError = runResult.reason instanceof Error ? runResult.reason.message : "갱신 상태를 확인하지 못했습니다.";
+  if (companyProfileResult.status === "fulfilled") companyProfiles = companyProfileResult.value;
+  else if (!databaseError) databaseError = companyProfileResult.reason instanceof Error ? companyProfileResult.reason.message : "기업 정보 상태를 확인하지 못했습니다.";
   const snapshot = research?.market.marketCapitalization ?? null;
   const status = research?.market.statuses.find((item) => item.source === "nasdaq_market_cap");
 
@@ -27,7 +30,8 @@ export default async function MarketCapPage() {
     </section>
 
     {databaseError || !research?.migrationReady ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>{databaseError ? "데이터베이스 확인이 필요합니다" : "리서치 migration이 필요합니다"}</strong></div><p>{databaseError || "Supabase에서 202608190014_investor_research.sql을 실행하세요."}</p></aside> : null}
+    {research?.migrationReady && !companyProfiles.migrationReady ? <aside className="setup-alert" role="status"><div><span className="alert-dot" /><strong>기업 정보 migration이 필요합니다</strong></div><p>Supabase에서 <code>202608230015_company_profiles.sql</code>을 실행하면 TOP200 재무·기업 분석 저장 기능이 활성화됩니다.</p></aside> : null}
     {status ? <DataSourceStatusList statuses={[status]} title="시가총액 데이터 상태" /> : null}
-    {!snapshot?.items.length ? <section className="empty-state"><div className="empty-orbit"><span>0</span></div><p className="kicker">NO MARKET CAP DATA YET</p><h2>아직 저장된 시가총액 순위가 없습니다.</h2><p>시장지수 갱신을 한 번 실행하면 무료 Nasdaq Screener 데이터에서 상위 200개 기업을 저장합니다.</p><RefreshButton source="market" initialRun={latestRun} /></section> : <MarketCapDashboard snapshot={snapshot} />}
+    {!snapshot?.items.length ? <section className="empty-state"><div className="empty-orbit"><span>0</span></div><p className="kicker">NO MARKET CAP DATA YET</p><h2>아직 저장된 시가총액 순위가 없습니다.</h2><p>시장지수 갱신을 한 번 실행하면 무료 Nasdaq Screener 데이터에서 상위 200개 기업을 저장합니다.</p><RefreshButton source="market" initialRun={latestRun} /></section> : <MarketCapDashboard snapshot={snapshot} initialProfileSummaries={companyProfiles.summaries} initialProfileRun={companyProfiles.latestRun} profileMigrationReady={companyProfiles.migrationReady} />}
   </div><SiteFooter /></main>;
 }
