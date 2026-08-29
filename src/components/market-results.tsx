@@ -1,57 +1,8 @@
 import { CountryEtfChart } from "@/components/country-etf-chart";
 import { DeferredRender } from "@/components/deferred-render";
-import { MarketChart } from "@/components/market-chart";
-import { marketTechnicals } from "@/lib/market-regime";
+import { MarketCard } from "@/components/market-card";
 import { MARKET_CORE_IDS, MARKET_SIGNAL_IDS } from "@/lib/market-data";
-import type { MarketSnapshot, MarketSeries } from "@/lib/types";
-
-function formatPrice(series: MarketSeries, value: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    minimumFractionDigits: series.decimals,
-    maximumFractionDigits: series.decimals,
-  }).format(value);
-}
-
-function instrumentLabel(series: MarketSeries): string {
-  return series.instrumentType === "index" ? "실제 지수" : series.instrumentType === "etf" ? "ETF" : series.instrumentType === "forex" ? "환율" : "암호화폐";
-}
-
-function chartTone(series: MarketSeries): "green" | "amber" | "blue" {
-  if (series.id === "gold") return "amber";
-  if (series.id === "bitcoin" || series.id === "usdkrw" || series.id === "dollar_index") return "blue";
-  return "green";
-}
-
-function MarketCard({ series, provider }: { series: MarketSeries; provider: MarketSnapshot["provider"] }) {
-  const drawdown = Math.min(series.drawdownPercent, 0);
-  const technicals = marketTechnicals(series);
-  return (
-    <article className="market-card">
-      <header className="market-card-head">
-        <div><span className="data-tag">{instrumentLabel(series)} · {series.symbol} · {series.interval === "daily" ? "일간" : "주간"}</span><h3>{series.label}</h3></div>
-        <time dateTime={series.observationDate}>{series.observationDate}</time>
-      </header>
-      <div className="market-price-row"><strong>{formatPrice(series, series.current)}</strong><span>{series.currency}</span></div>
-      <div className="market-stat-row">
-        <div><span>{series.interval === "daily" ? "전일 대비" : "전주 대비"}</span><b className={(series.changePercent ?? 0) >= 0 ? "up" : "down"}>{series.changePercent === null ? "-" : `${series.changePercent >= 0 ? "+" : ""}${series.changePercent.toFixed(2)}%`}</b></div>
-        <div><span>최근 3년 고점 대비</span><b className={drawdown < -10 ? "down" : ""}>{drawdown.toFixed(2)}%</b></div>
-      </div>
-      <div className="technical-strip">
-        <span>1M <b className={(technicals.oneMonth ?? 0) >= 0 ? "up" : "down"}>{technicals.oneMonth === null ? "-" : `${technicals.oneMonth > 0 ? "+" : ""}${technicals.oneMonth.toFixed(1)}%`}</b></span>
-        <span>3M <b className={(technicals.threeMonths ?? 0) >= 0 ? "up" : "down"}>{technicals.threeMonths === null ? "-" : `${technicals.threeMonths > 0 ? "+" : ""}${technicals.threeMonths.toFixed(1)}%`}</b></span>
-        <span>20D 변동성 <b>{technicals.realizedVolatility20D === null ? "-" : `${technicals.realizedVolatility20D.toFixed(1)}%`}</b></span>
-        <span>200D <b className={technicals.above200Day === true ? "up" : technicals.above200Day === false ? "down" : ""}>{technicals.above200Day === null ? "-" : technicals.above200Day ? "위" : "아래"}</b></span>
-      </div>
-      <DeferredRender className="deferred-chart" minHeight={225}>
-        <MarketChart points={series.points} decimals={series.decimals} currency={series.currency} tone={chartTone(series)} />
-      </DeferredRender>
-      <footer className="market-card-foot">
-        <span>종가 고점 {formatPrice(series, series.peakValue)} · {series.peakDate}</span>
-        <span>{series.benchmark ? `${series.benchmark} · ${provider}` : provider}</span>
-      </footer>
-    </article>
-  );
-}
+import type { MarketSnapshot } from "@/lib/types";
 
 export function MarketResults({ market }: { market: MarketSnapshot }) {
   const core = MARKET_CORE_IDS.flatMap((id) => market.series.find((series) => series.id === id) ?? []);
@@ -60,7 +11,7 @@ export function MarketResults({ market }: { market: MarketSnapshot }) {
     <>
       {market.warnings.length ? <aside className="market-warning" role="status"><strong>일부 지수는 이번 갱신에서 제외됐습니다.</strong>{market.warnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
       <section className="section-block market-section">
-        <div className="section-title"><div><p className="kicker">MARKET PRICES</p><h2>주요 시장</h2></div><p>낙폭은 최근 3년 종가 고점 기준 · {market.provider}</p></div>
+        <div className="section-title"><div><p className="kicker">MARKET PRICES</p><h2>주요 시장</h2></div><p>낙폭은 각 차트의 선택 기간 종가 고점 기준 · {market.provider}</p></div>
         <div className="market-grid stagger-grid">{core.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div>
       </section>
       {signals.length ? <details className="market-signal-details"><summary><div><p className="kicker">MARKET INTERNAL INPUTS</p><strong>시장 폭·신용·경기민감 원자료</strong><small>RSP · IWM · HYG · IEF · LQD · XLY · XLP</small></div><span>펼쳐보기</span></summary><div className="market-grid stagger-grid">{signals.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div></details> : null}

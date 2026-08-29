@@ -2,16 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useChartScrubber } from "@/components/use-chart-scrubber";
+import { marketPointsForRange, type MarketChartRange } from "@/lib/market-chart-range";
 import type { MarketPoint } from "@/lib/types";
-
-type ChartRange = "6M" | "1Y" | "3Y";
-
-function cutoffDate(lastDate: string, range: ChartRange): string {
-  const date = new Date(`${lastDate}T00:00:00Z`);
-  if (range === "6M") date.setUTCMonth(date.getUTCMonth() - 6);
-  else date.setUTCFullYear(date.getUTCFullYear() - (range === "1Y" ? 1 : 3));
-  return date.toISOString().slice(0, 10);
-}
 
 function reducePoints(points: MarketPoint[], maximum = 220): MarketPoint[] {
   if (points.length <= maximum) return points;
@@ -32,14 +24,17 @@ function tooltipAlignment(percent: number): string {
   return "";
 }
 
-export function MarketChart({ points, decimals, currency, tone = "green" }: { points: MarketPoint[]; decimals: number; currency?: string; tone?: "green" | "amber" | "blue" }) {
-  const [range, setRange] = useState<ChartRange>("1Y");
-  const visible = useMemo(() => {
-    const last = points.at(-1);
-    if (!last) return [];
-    return reducePoints(points.filter((point) => point.date >= cutoffDate(last.date, range)));
-  }, [points, range]);
+export function MarketChart({ points, decimals, currency, tone = "green", range: controlledRange, onRangeChange }: { points: MarketPoint[]; decimals: number; currency?: string; tone?: "green" | "amber" | "blue"; range?: MarketChartRange; onRangeChange?: (range: MarketChartRange) => void }) {
+  const [internalRange, setInternalRange] = useState<MarketChartRange>("1Y");
+  const range = controlledRange ?? internalRange;
+  const visible = useMemo(() => reducePoints(marketPointsForRange(points, range)), [points, range]);
   const scrubber = useChartScrubber(visible.length);
+
+  function selectRange(nextRange: MarketChartRange) {
+    scrubber.clear();
+    if (controlledRange === undefined) setInternalRange(nextRange);
+    onRangeChange?.(nextRange);
+  }
 
   if (visible.length < 2) return <div className="market-chart-empty">선택 구간의 데이터가 부족합니다.</div>;
 
@@ -70,8 +65,8 @@ export function MarketChart({ points, decimals, currency, tone = "green" }: { po
   return (
     <div className={`market-chart ${tone}`}>
       <div className="market-range-tabs" aria-label="차트 기간">
-        {(["6M", "1Y", "3Y"] as ChartRange[]).map((item) => (
-          <button className={range === item ? "active" : ""} type="button" onClick={() => { scrubber.clear(); setRange(item); }} key={item}>{item}</button>
+        {(["6M", "1Y", "3Y"] as MarketChartRange[]).map((item) => (
+          <button className={range === item ? "active" : ""} type="button" onClick={() => selectRange(item)} key={item}>{item}</button>
         ))}
       </div>
       <div className="market-chart-frame range-swap" key={range}>

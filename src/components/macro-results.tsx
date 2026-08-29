@@ -5,8 +5,8 @@ import { FearGreedCard } from "@/components/fear-greed-card";
 import { MacroCard } from "@/components/macro-card";
 import type { MacroSeries } from "@/lib/types";
 
-const PRIORITY = new Map([["VIXCLS", 0], ["T10Y2Y", 1], ["DCOILWTICO", 2], ["WTI_FUTURES_FRONT", 3]]);
-const CORE_IDS = new Set(["VIXCLS", "T10Y2Y", "DCOILWTICO", "WTI_FUTURES_FRONT", "PCEPILFE", "ICSA", "NFCI", "BAMLH0A0HYM2"]);
+const PRIORITY = new Map([["VIXCLS", 0], ["DGS2", 1], ["DGS10", 2], ["T10Y2Y", 3], ["DCOILWTICO", 4], ["WTI_FUTURES_FRONT", 5]]);
+const CORE_IDS = new Set(["VIXCLS", "DGS2", "DGS10", "T10Y2Y", "DCOILWTICO", "WTI_FUTURES_FRONT", "PCEPILFE", "ICSA", "NFCI", "BAMLH0A0HYM2"]);
 
 export function MacroResults({ series, warnings = [] }: { series: MacroSeries[]; warnings?: string[] }) {
   const [group, setGroup] = useState("핵심");
