@@ -330,6 +330,35 @@ export interface CompanyProfileNarrative {
   growthAndResearch: CompanyProfileNarrativeItem[];
 }
 
+export type CompanyMarketViewSourceType = "company" | "filing" | "news" | "research" | "other";
+
+export interface CompanyMarketViewSource {
+  id: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  sourceType: CompanyMarketViewSourceType;
+}
+
+export interface CompanyMarketViewItem {
+  title: string;
+  summary: string;
+  whyItMatters: string;
+  watchFor: string;
+  sourceIds: string[];
+}
+
+export interface CompanyMarketView {
+  asOf: string;
+  headline: string;
+  expectations: CompanyMarketViewItem[];
+  concerns: CompanyMarketViewItem[];
+  sources: CompanyMarketViewSource[];
+  limitations: string;
+}
+
+export type CompanyMarketViewStatus = "running" | "success" | "failed";
+
 export interface CompanyProfileSummary {
   ticker: string;
   companyName: string;
@@ -354,6 +383,15 @@ export interface CompanyProfileDetail extends CompanyProfileSummary {
   narrative: CompanyProfileNarrative | null;
   profileSourceAccession: string | null;
   profileSourceUrl: string | null;
+  marketViewMigrationReady: boolean;
+  marketView: CompanyMarketView | null;
+  marketViewAnalyzedAt: string | null;
+  marketViewModel: string | null;
+  marketViewPromptVersion: number | null;
+  marketViewStatus: CompanyMarketViewStatus | null;
+  marketViewStartedAt: string | null;
+  marketViewWorkflowRunId: string | null;
+  marketViewError: string | null;
 }
 
 export type CompanyProfileRefreshMode = "bulk" | "single";

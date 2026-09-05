@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { parseDashboardSnapshot } from "@/lib/snapshot-schema";
 import type { CompanyFinancialCollection } from "@/lib/company-financials";
-import type { CompanyProfileDetail, CompanyProfileNarrative, CompanyProfileRefreshRun, CompanyProfileSummary, ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, InvestorResearchState, MacroResearchPayload, MarketCapitalizationItem, MarketResearchPayload, PortfolioItem, RefreshMetricsRecord, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
+import type { CompanyMarketView, CompanyMarketViewStatus, CompanyProfileDetail, CompanyProfileNarrative, CompanyProfileRefreshRun, CompanyProfileSummary, ComprehensiveAnalysisReport, ComprehensiveAnalysisRunStatus, InvestorResearchState, MacroResearchPayload, MarketCapitalizationItem, MarketResearchPayload, PortfolioItem, RefreshMetricsRecord, RefreshRunStatus, RefreshSource, SocialRefreshMode, StoredComprehensiveAnalysis, StoredSnapshot } from "@/lib/types";
 
 let adminClient: SupabaseClient | null | undefined;
 
@@ -302,15 +302,25 @@ export async function getCompanyProfileDetail(ticker: string): Promise<{ migrati
   if (!/^[A-Z][A-Z0-9./-]{0,14}$/.test(normalized)) return { migrationReady: true, profile: null };
   const supabase = getSupabaseAdmin();
   if (!supabase) return { migrationReady: false, profile: null };
-  const { data, error } = await supabase.from("company_profiles")
+  const [{ data, error }, marketResult] = await Promise.all([
+    supabase.from("company_profiles")
     .select(`${COMPANY_PROFILE_SUMMARY_COLUMNS}, financial_payload, financial_source_url, profile_payload, profile_source_accession, profile_source_url`)
     .eq("ticker", normalized)
-    .maybeSingle();
+    .maybeSingle(),
+    supabase.from("company_profiles")
+      .select("market_view_payload, market_view_analyzed_at, market_view_model, market_view_prompt_version, market_view_status, market_view_started_at, market_view_workflow_run_id, market_view_error")
+      .eq("ticker", normalized)
+      .maybeSingle(),
+  ]);
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return { migrationReady: false, profile: null };
     throw new Error(`기업 정보 조회 실패: ${error.message}`);
   }
   if (!data) return { migrationReady: true, profile: null };
+  const marketColumnsMissing = marketResult.error?.code === "42703" || marketResult.error?.code === "PGRST204";
+  if (marketResult.error && !marketColumnsMissing) throw new Error(`시장 기대·우려 조회 실패: ${marketResult.error.message}`);
+  const market = marketColumnsMissing ? null : marketResult.data;
+  const marketStatus = market?.market_view_status;
   return {
     migrationReady: true,
     profile: {
@@ -320,8 +330,84 @@ export async function getCompanyProfileDetail(ticker: string): Promise<{ migrati
       narrative: (data.profile_payload as CompanyProfileDetail["narrative"] | undefined) ?? null,
       profileSourceAccession: (data.profile_source_accession as string | null | undefined) ?? null,
       profileSourceUrl: (data.profile_source_url as string | null | undefined) ?? null,
+      marketViewMigrationReady: !marketColumnsMissing,
+      marketView: (market?.market_view_payload as CompanyMarketView | null | undefined) ?? null,
+      marketViewAnalyzedAt: (market?.market_view_analyzed_at as string | null | undefined) ?? null,
+      marketViewModel: (market?.market_view_model as string | null | undefined) ?? null,
+      marketViewPromptVersion: market?.market_view_prompt_version === null || market?.market_view_prompt_version === undefined ? null : Number(market.market_view_prompt_version),
+      marketViewStatus: marketStatus === "running" || marketStatus === "success" || marketStatus === "failed" ? marketStatus as CompanyMarketViewStatus : null,
+      marketViewStartedAt: (market?.market_view_started_at as string | null | undefined) ?? null,
+      marketViewWorkflowRunId: (market?.market_view_workflow_run_id as string | null | undefined) ?? null,
+      marketViewError: (market?.market_view_error as string | null | undefined) ?? null,
     },
   };
+}
+
+export async function startCompanyMarketViewAnalysis(company: MarketCapitalizationItem, model: string, promptVersion: number): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const startedAt = new Date().toISOString();
+  const { error } = await supabase.from("company_profiles").upsert({
+    ticker: company.symbol,
+    company_name: company.name,
+    sector: company.sector,
+    industry: company.industry,
+    country: company.country,
+    market_view_status: "running",
+    market_view_started_at: startedAt,
+    market_view_workflow_run_id: null,
+    market_view_model: model,
+    market_view_prompt_version: promptVersion,
+    market_view_error: null,
+    updated_at: startedAt,
+  }, { onConflict: "ticker" });
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204") return null;
+    throw new Error(`시장 기대·우려 분석 상태 저장 실패: ${error.message}`);
+  }
+  return startedAt;
+}
+
+export async function attachCompanyMarketViewWorkflow(ticker: string, startedAt: string, workflowRunId: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const { error } = await supabase.from("company_profiles")
+    .update({ market_view_workflow_run_id: workflowRunId, updated_at: new Date().toISOString() })
+    .eq("ticker", ticker)
+    .eq("market_view_started_at", startedAt)
+    .eq("market_view_status", "running");
+  if (error) throw new Error(`시장 기대·우려 Workflow 연결 실패: ${error.message}`);
+}
+
+export async function saveCompanyMarketView(ticker: string, startedAt: string, marketView: CompanyMarketView, model: string, promptVersion: number): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("company_profiles")
+    .update({
+      market_view_payload: marketView,
+      market_view_analyzed_at: now,
+      market_view_model: model,
+      market_view_prompt_version: promptVersion,
+      market_view_status: "success",
+      market_view_error: null,
+      updated_at: now,
+    })
+    .eq("ticker", ticker)
+    .eq("market_view_started_at", startedAt)
+    .eq("market_view_status", "running");
+  if (error) throw new Error(`시장 기대·우려 저장 실패: ${error.message}`);
+}
+
+export async function failCompanyMarketViewAnalysis(ticker: string, startedAt: string, message: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { error } = await supabase.from("company_profiles")
+    .update({ market_view_status: "failed", market_view_error: message.slice(0, 1_200), updated_at: new Date().toISOString() })
+    .eq("ticker", ticker)
+    .eq("market_view_started_at", startedAt)
+    .eq("market_view_status", "running");
+  if (error) throw new Error(`시장 기대·우려 오류 저장 실패: ${error.message}`);
 }
 
 export async function seedCompanyProfileMetadata(companies: MarketCapitalizationItem[]): Promise<boolean> {

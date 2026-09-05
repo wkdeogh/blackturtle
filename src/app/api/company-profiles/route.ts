@@ -4,7 +4,7 @@ import { isAuthenticated } from "@/lib/auth";
 import { COMPANY_PROFILE_ESTIMATED_INPUT_TOKENS, COMPANY_PROFILE_PROMPT_VERSION } from "@/lib/company-profile-analysis";
 import { DEFAULT_OPENAI_COMPANY_PROFILE_MODEL } from "@/lib/openai-config";
 import { isSameOriginPost } from "@/lib/session";
-import { getCompanyProfileDetail, getCompanyProfilesState, getSupabaseAdmin } from "@/lib/supabase";
+import { failCompanyMarketViewAnalysis, getCompanyProfileDetail, getCompanyProfilesState, getSupabaseAdmin } from "@/lib/supabase";
 import { companyProfileWorkflow, getCompanyProfileRefreshPreview } from "@/workflows/company-profiles";
 
 function modelName() {
@@ -32,7 +32,19 @@ export async function GET(request: Request) {
       }
     }
     if (ticker) {
-      const detail = await getCompanyProfileDetail(ticker);
+      let detail = await getCompanyProfileDetail(ticker);
+      const marketView = detail.profile;
+      if (marketView?.marketViewStatus === "running" && marketView.marketViewStartedAt && marketView.marketViewWorkflowRunId && Date.now() - Date.parse(marketView.marketViewStartedAt) > 15 * 60_000) {
+        try {
+          const workflowStatus = await getRun(marketView.marketViewWorkflowRunId).status;
+          if (workflowStatus === "failed" || workflowStatus === "cancelled") {
+            await failCompanyMarketViewAnalysis(ticker, marketView.marketViewStartedAt, workflowStatus === "cancelled" ? "시장 기대·우려 분석이 취소되었습니다." : "시장 기대·우려 분석이 복구되지 못하고 종료되었습니다.");
+            detail = await getCompanyProfileDetail(ticker);
+          }
+        } catch {
+          // 저장된 진행 상태를 유지하고 다음 조회에서 다시 확인한다.
+        }
+      }
       return NextResponse.json({ migrationReady: detail.migrationReady, profile: detail.profile, run: state.latestRun }, { headers: { "Cache-Control": "no-store" } });
     }
     return NextResponse.json({ migrationReady: state.migrationReady, summaries: state.summaries, run: state.latestRun }, { headers: { "Cache-Control": "no-store" } });

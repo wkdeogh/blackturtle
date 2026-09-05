@@ -141,6 +141,45 @@ function CompanyFinancialChart({ annual, quarterly, currency }: { annual: Compan
   </div>;
 }
 
+function CompanyMarketViewPanel({
+  profile,
+  migrationReady,
+  action,
+  onAnalyze,
+}: {
+  profile: CompanyProfileDetail | null;
+  migrationReady: boolean;
+  action: "idle" | "starting";
+  onAnalyze: () => void;
+}) {
+  const marketView = profile?.marketView ?? null;
+  const sourceById = new Map(marketView?.sources.map((source) => [source.id, source]) ?? []);
+  const running = profile?.marketViewStatus === "running";
+  const renderItems = (items: NonNullable<CompanyProfileDetail["marketView"]>["expectations"], kind: "expectation" | "concern") => items.length
+    ? <ol>{items.map((item, index) => <li key={`${kind}-${item.title}`}>
+      <span className="company-market-view-number">{String(index + 1).padStart(2, "0")}</span>
+      <div><h4>{item.title}</h4><p>{item.summary}</p>
+        {item.whyItMatters ? <dl><div><dt>왜 중요한가</dt><dd>{item.whyItMatters}</dd></div>{item.watchFor ? <div><dt>확인할 것</dt><dd>{item.watchFor}</dd></div> : null}</dl> : null}
+        <div className="company-market-view-citations">{item.sourceIds.flatMap((id) => {
+          const source = sourceById.get(id);
+          return source ? [<a href={source.url} target="_blank" rel="noreferrer" key={id}>{source.title}{source.publishedAt ? ` · ${source.publishedAt}` : ""} ↗</a>] : [];
+        })}</div>
+      </div>
+    </li>)}</ol>
+    : <div className="company-profile-inline-empty">검증 가능한 근거를 충분히 찾지 못했습니다.</div>;
+
+  return <section className="company-market-view" aria-live="polite">
+    <div className="company-profile-section-head"><div><p className="kicker">02 · MARKET VIEW</p><h3>시장의 기대와 우려</h3></div><button type="button" className="secondary-button" onClick={onAnalyze} disabled={!migrationReady || profile?.marketViewMigrationReady === false || running || action !== "idle"}>{!migrationReady || profile?.marketViewMigrationReady === false ? "migration 필요" : running || action === "starting" ? "시장 분석 중…" : marketView ? "새로 분석" : "시장 기대·우려 분석"}</button></div>
+    {running ? <div className="company-market-view-progress"><i /><span>최신 공시와 시장 자료를 검색하고 있습니다. 페이지를 나가도 계속됩니다.</span></div> : null}
+    {marketView ? <>
+      <blockquote><span>현재 시장의 중심 쟁점</span><strong>{marketView.headline}</strong><small>{marketView.asOf} 기준 · 검증된 출처 {marketView.sources.length}개</small></blockquote>
+      <div className="company-market-view-grid"><article className="expectation"><header><span>EXPECTATIONS</span><h4>시장의 기대</h4></header>{renderItems(marketView.expectations, "expectation")}</article><article className="concern"><header><span>CONCERNS</span><h4>시장의 우려</h4></header>{renderItems(marketView.concerns, "concern")}</article></div>
+      {marketView.limitations ? <aside>{marketView.limitations}</aside> : null}
+    </> : !running ? <div className="company-profile-inline-empty company-market-view-empty">최신 실적 발표, SEC 공시와 시장 자료를 검색해 현재 반복되는 기대와 우려를 각각 최대 3개까지 정리합니다.</div> : null}
+    {profile?.marketViewError && !running ? <small className="company-profile-warning">최근 시장 분석 오류: {profile.marketViewError}</small> : null}
+  </section>;
+}
+
 export function MarketCapDashboard({
   snapshot,
   initialProfileSummaries,
@@ -164,6 +203,7 @@ export function MarketCapDashboard({
   const [details, setDetails] = useState<Record<string, CompanyProfileDetail | null>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [marketViewAction, setMarketViewAction] = useState<"idle" | "starting">("idle");
   const previousRunRef = useRef(profileRun);
   const ranked = snapshot.items.slice(0, 200);
   const sectors = useMemo(() => [...new Set(snapshot.items.map((item) => item.sector))].sort((a, b) => a.localeCompare(b, "ko")), [snapshot.items]);
@@ -249,6 +289,26 @@ export function MarketCapDashboard({
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", close); };
   }, [selectedTicker, preview, profileAction]);
 
+  useEffect(() => {
+    if (!selectedTicker || selectedProfile?.marketViewStatus !== "running") return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/company-profiles?ticker=${encodeURIComponent(selectedTicker)}`, { cache: "no-store" });
+        const body = (await response.json()) as ProfileApiResponse;
+        if (!active || !response.ok || !body.profile) return;
+        setProfileRun(body.run ?? null);
+        setDetails((current) => ({ ...current, [selectedTicker]: body.profile ?? null }));
+        if (body.profile.marketViewStatus === "success") showToast(`${selectedTicker} 시장 기대·우려 분석을 완료했습니다.`);
+        if (body.profile.marketViewStatus === "failed") showToast(body.profile.marketViewError ?? "시장 기대·우려 분석에 실패했습니다.", "error");
+      } catch {
+        // 일시적인 조회 실패는 다음 polling에서 다시 확인한다.
+      }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 3_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [selectedTicker, selectedProfile?.marketViewStatus]);
+
   async function copyVisibleTickers() {
     if (!rows.length) return;
     const tickers = rows.map((item) => item.symbol).join(", ");
@@ -323,6 +383,27 @@ export function MarketCapDashboard({
     }
   }
 
+  async function startMarketViewRefresh() {
+    if (!selectedCompany || marketViewAction !== "idle" || selectedProfile?.marketViewStatus === "running") return;
+    setMarketViewAction("starting");
+    try {
+      const response = await fetch("/api/company-market-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: selectedCompany.symbol, force: Boolean(selectedProfile?.marketView) }),
+        keepalive: true,
+      });
+      const body = (await response.json()) as ProfileApiResponse;
+      if (!response.ok) throw new Error(body.error ?? "시장 기대·우려 분석을 시작하지 못했습니다.");
+      if (body.profile) setDetails((current) => ({ ...current, [selectedCompany.symbol]: body.profile ?? null }));
+      showToast(body.profile?.marketViewStatus === "running" ? `${selectedCompany.symbol} 시장 기대·우려 분석을 시작했습니다.` : "저장된 시장 분석이 최신 상태입니다.", "info");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "시장 기대·우려 분석을 시작하지 못했습니다.", "error");
+    } finally {
+      setMarketViewAction("idle");
+    }
+  }
+
   return <>
     <section className="market-cap-summary" aria-label="시가총액 상위 200개 요약">
       <article><span>TOP 200 합산</span><strong>{compactDollar(totalMarketCap)}</strong><small>중복 주식 종류는 기업 단위로 정리</small></article>
@@ -363,11 +444,12 @@ export function MarketCapDashboard({
 
     {selectedCompany ? <div className="company-profile-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedTicker(null); }}><section className="company-profile-modal" role="dialog" aria-modal="true" aria-labelledby="company-profile-title"><header><div><p className="kicker">COMPANY PROFILE · #{selectedCompany.rank}</p><h2 id="company-profile-title"><span>{selectedCompany.symbol}</span>{selectedCompany.name}</h2><p>{selectedCompany.sector}{selectedCompany.industry ? ` · ${selectedCompany.industry}` : ""}</p></div><button type="button" onClick={() => setSelectedTicker(null)} aria-label="기업 상세 닫기">×</button></header>
       {detailLoading && !selectedProfile ? <div className="company-profile-loading" aria-busy="true"><i /><i /><i /></div> : detailError ? <div className="company-profile-error"><strong>기업 정보를 불러오지 못했습니다.</strong><p>{detailError}</p><button type="button" className="secondary-button" onClick={() => void loadProfile(selectedCompany.symbol, true)}>다시 불러오기</button></div> : <>
-        <div className="company-profile-status-row"><span className={(ageLabel(selectedProfile?.profileAnalyzedAt ?? null).days ?? 999) >= 60 ? "stale" : "fresh"}>기업 분석 {ageLabel(selectedProfile?.profileAnalyzedAt ?? null).label}</span><span>재무 확인 {ageLabel(selectedProfile?.financialCheckedAt ?? null).label}</span>{selectedProfile?.financialFilingForm ? <span>{selectedProfile.financialFilingForm} · {selectedProfile.financialFilingDate}</span> : null}</div>
+        <div className="company-profile-status-row"><span className={(ageLabel(selectedProfile?.profileAnalyzedAt ?? null).days ?? 999) >= 60 ? "stale" : "fresh"}>기업 분석 {ageLabel(selectedProfile?.profileAnalyzedAt ?? null).label}</span><span>재무 확인 {ageLabel(selectedProfile?.financialCheckedAt ?? null).label}</span>{selectedProfile?.marketViewStatus === "running" ? <span className="stale">시장 분석 중</span> : selectedProfile?.marketViewAnalyzedAt ? <span className={(ageLabel(selectedProfile.marketViewAnalyzedAt).days ?? 999) >= 7 ? "stale" : "fresh"}>시장 분석 {ageLabel(selectedProfile.marketViewAnalyzedAt).label}</span> : null}{selectedProfile?.financialFilingForm ? <span>{selectedProfile.financialFilingForm} · {selectedProfile.financialFilingDate}</span> : null}</div>
         <section className="company-profile-overview"><div className="company-profile-section-head"><div><p className="kicker">01 · OVERVIEW</p><h3>어떤 기업인가</h3></div><button type="button" className="secondary-button" onClick={() => void startProfileRefresh("single", selectedCompany.symbol)} disabled={!profileMigrationReady || running || profileAction !== "idle"}>{!profileMigrationReady ? "migration 필요" : running && profileRun?.requestedTicker === selectedCompany.symbol ? "갱신 중…" : "이 기업 갱신"}</button></div>{selectedProfile?.narrative?.overview ? <p>{selectedProfile.narrative.overview}</p> : <div className="company-profile-inline-empty">{profileMigrationReady ? "아직 저장된 기업 분석이 없습니다. 이 기업 갱신 버튼을 누르면 최신 SEC 공시를 바탕으로 분석합니다." : "기업 정보 migration을 적용하면 재무·기업 분석을 저장할 수 있습니다."}</div>}{selectedProfile?.profileError ? <small className="company-profile-warning">최근 분석 오류: {selectedProfile.profileError}</small> : null}</section>
-        <section><div className="company-profile-section-head"><div><p className="kicker">02 · FINANCIALS</p><h3>연간·분기 실적</h3></div>{selectedProfile?.financialSourceUrl ? <a href={selectedProfile.financialSourceUrl} target="_blank" rel="noreferrer">SEC Company Facts ↗</a> : null}</div><CompanyFinancialChart annual={selectedProfile?.financial?.annual ?? []} quarterly={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /><div className="company-financial-groups"><article><h4>연간</h4><FinancialRows rows={selectedProfile?.financial?.annual ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article><article><h4>분기</h4><FinancialRows rows={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article></div></section>
-        <section className="company-profile-two-column"><article><p className="kicker">03 · REVENUE ITEMS</p><h3>주요 매출 아이템</h3>{selectedProfile?.narrative?.revenueItems?.length ? <ul>{selectedProfile.narrative.revenueItems.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article><article><p className="kicker">04 · GROWTH &amp; R&amp;D</p><h3>성장·연구개발 방향</h3>{selectedProfile?.narrative?.growthAndResearch?.length ? <ul>{selectedProfile.narrative.growthAndResearch.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article></section>
-        <footer><div><span>기업 분석 {selectedProfile?.profileModel ?? "아직 없음"}</span>{selectedProfile?.profileSourceUrl ? <a href={selectedProfile.profileSourceUrl} target="_blank" rel="noreferrer">분석 근거 공시 ↗</a> : null}</div><a href={selectedCompany.sourceUrl} target="_blank" rel="noreferrer">Nasdaq 종목 페이지 ↗</a></footer>
+        <CompanyMarketViewPanel profile={selectedProfile} migrationReady={profileMigrationReady} action={marketViewAction} onAnalyze={() => void startMarketViewRefresh()} />
+        <section><div className="company-profile-section-head"><div><p className="kicker">03 · FINANCIALS</p><h3>연간·분기 실적</h3></div>{selectedProfile?.financialSourceUrl ? <a href={selectedProfile.financialSourceUrl} target="_blank" rel="noreferrer">SEC Company Facts ↗</a> : null}</div><CompanyFinancialChart annual={selectedProfile?.financial?.annual ?? []} quarterly={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /><div className="company-financial-groups"><article><h4>연간</h4><FinancialRows rows={selectedProfile?.financial?.annual ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article><article><h4>분기</h4><FinancialRows rows={selectedProfile?.financial?.quarterly ?? []} currency={selectedProfile?.financial?.currency ?? "USD"} /></article></div></section>
+        <section className="company-profile-two-column"><article><p className="kicker">04 · REVENUE ITEMS</p><h3>주요 매출 아이템</h3>{selectedProfile?.narrative?.revenueItems?.length ? <ul>{selectedProfile.narrative.revenueItems.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article><article><p className="kicker">05 · GROWTH &amp; R&amp;D</p><h3>성장·연구개발 방향</h3>{selectedProfile?.narrative?.growthAndResearch?.length ? <ul>{selectedProfile.narrative.growthAndResearch.map((item) => <li key={item.title}><strong>{item.title}</strong><p>{item.description}</p></li>)}</ul> : <div className="company-profile-inline-empty">기업 분석 후 표시됩니다.</div>}</article></section>
+        <footer><div><span>기업 분석 {selectedProfile?.profileModel ?? "아직 없음"}</span>{selectedProfile?.marketViewModel ? <span>시장 분석 {selectedProfile.marketViewModel}</span> : null}{selectedProfile?.profileSourceUrl ? <a href={selectedProfile.profileSourceUrl} target="_blank" rel="noreferrer">분석 근거 공시 ↗</a> : null}</div><a href={selectedCompany.sourceUrl} target="_blank" rel="noreferrer">Nasdaq 종목 페이지 ↗</a></footer>
       </>}
     </section></div> : null}
   </>;
