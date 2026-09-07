@@ -66,7 +66,7 @@ export function MarketChart({ points, decimals, currency, tone = "green", range:
     <div className={`market-chart ${tone}`}>
       <div className="market-range-tabs" aria-label="차트 기간">
         {(["6M", "1Y", "3Y"] as MarketChartRange[]).map((item) => (
-          <button className={range === item ? "active" : ""} type="button" onClick={() => selectRange(item)} key={item}>{item}</button>
+          <button aria-pressed={range === item} className={range === item ? "active" : ""} type="button" onClick={() => selectRange(item)} key={item}>{item}</button>
         ))}
       </div>
       <div className="market-chart-frame range-swap" key={range}>

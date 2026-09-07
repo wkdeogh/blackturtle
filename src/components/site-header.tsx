@@ -18,7 +18,7 @@ const NAV_ITEMS = [
 export function SiteHeader() {
   const pathname = usePathname();
   const matches = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
-  const navigation = NAV_ITEMS.map((item) => <Link className={matches(item.href) || item.related?.some(matches) ? "active" : ""} href={item.href} prefetch key={item.href}>{item.label}</Link>);
+  const navigation = NAV_ITEMS.map((item) => <Link aria-current={matches(item.href) || item.related?.some(matches) ? "page" : undefined} className={matches(item.href) || item.related?.some(matches) ? "active" : ""} href={item.href} prefetch key={item.href}>{item.label}</Link>);
   return (
     <>
       <header className="site-header">
