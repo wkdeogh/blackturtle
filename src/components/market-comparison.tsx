@@ -34,9 +34,9 @@ export function MarketComparison({ series }: { series: MarketSeries[] }) {
       <table className="comparison-table"><thead><tr><th scope="col">자산 / 기준일</th><th scope="col">기간 등락</th><th scope="col">기간 고점 대비</th><th scope="col">계산 구간</th></tr></thead>
         <tbody>{rows.map(({ item, performance, drawdown }) => <tr key={item.id}>
           <th scope="row"><a href={`#market-${item.id}`}>{item.label} <span aria-hidden="true">↗</span></a><small>{item.symbol} · {item.observationDate}</small></th>
-          <td data-label="기간 등락" className={performance ? performance.percent >= 0 ? "up" : "down" : ""}>{signed(performance?.percent ?? null)}</td>
-          <td data-label="기간 고점 대비" className={drawdown && drawdown.drawdownPercent < -10 ? "down" : ""}>{signed(drawdown?.drawdownPercent ?? null)}</td>
-          <td data-label="계산 구간"><small>{performance ? `${performance.start} ~ ${performance.end}` : "데이터 부족"}</small></td>
+          <td className={performance ? performance.percent >= 0 ? "up" : "down" : ""}>{signed(performance?.percent ?? null)}</td>
+          <td className={drawdown && drawdown.drawdownPercent < -10 ? "down" : ""}>{signed(drawdown?.drawdownPercent ?? null)}</td>
+          <td><small>{performance ? `${performance.start} ~ ${performance.end}` : "데이터 부족"}</small></td>
         </tr>)}</tbody>
       </table>
     </div>

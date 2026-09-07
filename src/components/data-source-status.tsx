@@ -9,10 +9,9 @@ const STATE_LABEL: Record<DataSourceStatus["state"], string> = {
 
 export function DataSourceStatusList({ statuses, title = "데이터 상태" }: { statuses: DataSourceStatus[]; title?: string }) {
   if (!statuses.length) return null;
-  const attention = statuses.filter((item) => item.state !== "fresh").length;
   return (
-    <details className="source-status-card" aria-label={title} open={attention > 0}>
-      <summary><div><span className="kicker">SOURCE HEALTH</span><strong>{title}</strong></div><span className={attention ? "source-attention" : "source-healthy"}>{attention ? `${attention}개 확인 필요` : `${statuses.length}개 모두 최신`}<span className="source-disclosure" aria-hidden="true">⌄</span></span></summary>
+    <section className="source-status-card" aria-label={title}>
+      <header><div><p className="kicker">SOURCE HEALTH</p><h2>{title}</h2></div><span>{statuses.filter((item) => item.state === "fresh").length}/{statuses.length} 최신</span></header>
       <div className="source-status-grid">
         {statuses.map((status) => (
           <article className={`source-status ${status.state}`} key={status.source}>
@@ -22,6 +21,6 @@ export function DataSourceStatusList({ statuses, title = "데이터 상태" }: {
           </article>
         ))}
       </div>
-    </details>
+    </section>
   );
 }
