@@ -1,6 +1,5 @@
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { readJsonResponse } from "@/lib/http-json";
-import { newYorkDate } from "@/lib/investor-view";
 import type { EconomicCalendarEvent } from "@/lib/types";
 
 interface FredReleaseDatesResponse {
@@ -22,8 +21,8 @@ function addDays(date: Date, days: number): string {
 }
 
 export async function collectEconomicCalendar(apiKey: string, now = new Date()): Promise<EconomicCalendarEvent[]> {
-  const start = newYorkDate(now);
-  const end = addDays(new Date(`${start}T00:00:00Z`), 60);
+  const start = now.toISOString().slice(0, 10);
+  const end = addDays(now, 60);
   const params = new URLSearchParams({
     api_key: apiKey,
     file_type: "json",

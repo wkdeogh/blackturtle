@@ -39,8 +39,7 @@ export async function collectEarningsCalendar(apiKey: string, tickers: string[])
     const ticker = row[column("symbol")]?.trim().toUpperCase() ?? "";
     const reportDate = row[column("reportdate")]?.trim() ?? "";
     if (!symbols.has(ticker) || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return [];
-    const estimateText = row[column("estimate")]?.trim();
-    const estimateRaw = estimateText ? Number(estimateText) : NaN;
+    const estimateRaw = Number(row[column("estimate")]);
     return [{
       ticker,
       companyName: row[column("name")]?.trim() || undefined,

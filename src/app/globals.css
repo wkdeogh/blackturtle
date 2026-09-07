@@ -1177,39 +1177,3 @@ html[data-theme="light"] .rank { color: #7b8780; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-
-/* Investor comparison and calendar controls */
-.investor-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
-.investor-segments { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
-.investor-segments button { min-width: 58px; min-height: 40px; padding: 7px 14px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-weight: 700; }
-.investor-segments button[aria-pressed="true"] { color: var(--green-2); background: var(--mint); }
-.investor-select { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
-.investor-select select, .investor-search input { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; color: var(--ink); background: var(--input-bg); }
-.investor-search { display: block; flex: 1 1 240px; max-width: 420px; }
-.investor-search input { width: 100%; }
-.investor-help { color: var(--muted); font-size: 12px; line-height: 1.7; }
-.comparison-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
-.comparison-table { min-width: 660px; width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
-.comparison-table th, .comparison-table td { padding: 14px 18px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-.comparison-table th:first-child { text-align: left; }
-.comparison-table thead th { font-size: 12px; color: var(--muted); background: var(--subtle-bg); }
-.comparison-table tbody th { font-weight: 700; }
-.comparison-table td { font-weight: 700; }
-.comparison-table small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
-.comparison-table a { text-decoration: none; }
-.comparison-table a:hover { color: var(--green-2); text-decoration: underline; }
-.comparison-table tr:last-child > * { border-bottom: 0; }
-.comparison-table tbody tr:hover { background: var(--hover-bg); }
-.market-card[id] { scroll-margin-top: 100px; }
-.market-card:target { outline: 2px solid var(--green-2); outline-offset: 3px; }
-.calendar-filter { margin: 0 0 16px; max-width: none; }
-.calendar-filter select { flex: 1; min-width: 0; }
-.calendar-card time small { display: block; color: var(--green-2); font-size: 11px; margin-top: 3px; }
-.calendar-card li > div { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 600px) {
-  .comparison-table th, .comparison-table td { padding: 12px 10px; }
-  .comparison-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); min-width: 140px; max-width: 150px; white-space: normal; }
-  .comparison-table thead th:first-child { background: var(--subtle-bg); }
-  .investor-toolbar .investor-search { max-width: none; flex-basis: 100%; }
-  .market-card[id] { scroll-margin-top: 150px; }
-}

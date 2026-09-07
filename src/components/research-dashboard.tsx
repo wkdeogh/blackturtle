@@ -1,9 +1,9 @@
 import { DataSourceStatusList } from "@/components/data-source-status";
 import { MacroLineChart } from "@/components/macro-line-chart";
 import { MarketChart } from "@/components/market-chart";
-import { InvestorCalendar } from "@/components/investor-calendar";
-import { newYorkDate } from "@/lib/investor-view";
 import type { MacroResearchPayload, MacroSeries, MarketResearchPayload } from "@/lib/types";
+
+const CATEGORY_LABEL = { inflation: "물가", employment: "고용", growth: "성장", fed: "연준", other: "기타" } as const;
 
 function energyMacro(series: MacroResearchPayload["energy"][number]): MacroSeries {
   return { ...series, group: "원유 수급", decimals: series.unit === "%" ? 1 : 0 };
@@ -14,13 +14,24 @@ function formatPosition(value: number) {
 }
 
 export function ResearchDashboard({ macro, market }: { macro: MacroResearchPayload; market: MarketResearchPayload }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const future = new Date(); future.setUTCDate(future.getUTCDate() + 30);
+  const cutoff = future.toISOString().slice(0, 10);
+  const events = macro.economicEvents.filter((event) => event.date >= today && event.date <= cutoff);
+  const earnings = market.earningsEvents.filter((event) => event.reportDate >= today && event.reportDate <= cutoff);
   const filings = market.secFilings.slice(0, 30);
   const warnings = [...macro.warnings, ...market.warnings];
   return <>
     <DataSourceStatusList statuses={[...macro.statuses, ...market.statuses.filter((status) => status.source !== "portfolio_prices")]} title="리서치 데이터 상태" />
     {warnings.length ? <aside className="market-warning"><strong>일부 보조 데이터는 이전 값을 유지하거나 제외했습니다.</strong>{warnings.slice(0, 12).map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
 
-    <InvestorCalendar economicEvents={macro.economicEvents} earningsEvents={market.earningsEvents} today={newYorkDate(new Date())} />
+    <section className="section-block">
+      <div className="section-title"><div><p className="kicker">NEXT 30 DAYS</p><h2>경제·실적 일정</h2></div><p>발표일은 변경될 수 있으므로 원문에서 재확인하세요.</p></div>
+      <div className="calendar-columns">
+        <article className="calendar-card"><header><h3>미국 주요 경제 발표</h3><span>FRED</span></header>{events.length ? <ol>{events.map((event) => <li key={event.id}><time dateTime={event.date}>{event.date.slice(5).replace("-", ".")}</time><div><b>{event.name}</b><span className={`calendar-category ${event.category}`}>{CATEGORY_LABEL[event.category]}</span></div></li>)}</ol> : <p className="card-empty">향후 30일 일정이 없거나 아직 수집되지 않았습니다.</p>}</article>
+        <article className="calendar-card"><header><h3>관심종목 실적 발표</h3><span>Alpha Vantage</span></header>{earnings.length ? <ol>{earnings.map((event) => <li key={`${event.ticker}:${event.reportDate}`}><time dateTime={event.reportDate}>{event.reportDate.slice(5).replace("-", ".")}</time><div><b>{event.ticker} <small>{event.companyName}</small></b><span>{event.estimate === null || event.estimate === undefined ? "EPS 추정 없음" : `EPS 추정 ${event.estimate}`}</span></div></li>)}</ol> : <p className="card-empty">등록된 포트폴리오 종목의 예정 실적이 없습니다.</p>}</article>
+      </div>
+    </section>
 
     <section className="section-block">
       <div className="section-title"><div><p className="kicker">ENERGY BALANCE</p><h2>미국 원유 수급</h2></div><p>EIA 주간 데이터 · 재고·생산·정유 가동률을 함께 봅니다.</p></div>
