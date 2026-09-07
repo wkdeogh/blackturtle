@@ -34,7 +34,7 @@ export function MarketCard({ series, provider }: { series: MarketSeries; provide
   const technicals = marketTechnicals(series);
 
   return (
-    <article className="market-card">
+    <article className="market-card" id={`market-${series.id}`}>
       <header className="market-card-head">
         <div><span className="data-tag">{instrumentLabel(series)} · {series.symbol} · {series.interval === "daily" ? "일간" : "주간"}</span><h3>{series.label}</h3></div>
         <time dateTime={series.observationDate}>{series.observationDate}</time>

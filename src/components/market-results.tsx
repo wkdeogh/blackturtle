@@ -1,6 +1,7 @@
 import { CountryEtfChart } from "@/components/country-etf-chart";
 import { DeferredRender } from "@/components/deferred-render";
 import { MarketCard } from "@/components/market-card";
+import { MarketComparison } from "@/components/market-comparison";
 import { MARKET_CORE_IDS, MARKET_SIGNAL_IDS } from "@/lib/market-data";
 import type { MarketSnapshot } from "@/lib/types";
 
@@ -10,6 +11,7 @@ export function MarketResults({ market }: { market: MarketSnapshot }) {
   return (
     <>
       {market.warnings.length ? <aside className="market-warning" role="status"><strong>일부 지수는 이번 갱신에서 제외됐습니다.</strong>{market.warnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
+      <MarketComparison series={core} />
       <section className="section-block market-section">
         <div className="section-title"><div><p className="kicker">MARKET PRICES</p><h2>주요 시장</h2></div><p>낙폭은 각 차트의 선택 기간 종가 고점 기준 · {market.provider}</p></div>
         <div className="market-grid stagger-grid">{core.map((series) => <MarketCard series={series} provider={market.provider} key={series.id} />)}</div>
