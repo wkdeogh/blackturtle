@@ -172,7 +172,7 @@ export function SocialResults({ social, expanded = false, mode = "accounts" }: {
   const maxTopicCount = topics[0]?.postCount ?? 1;
   return (
     <>
-      {social.collectionWarnings?.length ? <aside className="market-warning" role="status"><strong>일부 X 대상은 이번 수집에서 이전 데이터를 유지했습니다.</strong>{social.collectionWarnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
+      {social.collectionWarnings?.length ? <aside className="market-warning" role="status"><strong>X 수집 안내</strong>{social.collectionWarnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
       {social.collectionMetrics ? <div className="collection-metric-strip"><span>API 호출 <b>{social.collectionMetrics.apiCalls}</b></span><span>성공 대상 <b>{social.collectionMetrics.targetsSucceeded}/{social.collectionMetrics.targetsAttempted}</b></span><span>신규 게시물 <b>{social.collectionMetrics.fetchedPosts}</b></span><span>분석 재사용 <b>{social.collectionMetrics.reusedAnalyses}</b></span></div> : null}
       <section className="section-block topic-section">
         <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>{mode === "tickers" ? "티커 검색" : "계정 수집"} · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>

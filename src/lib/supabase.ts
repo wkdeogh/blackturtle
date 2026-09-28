@@ -121,14 +121,14 @@ export function getSnapshotSource(snapshot: StoredSnapshot): RefreshSource | nul
   return null;
 }
 
-export async function getSnapshotHistory(limit = 100): Promise<StoredSnapshot[]> {
+export async function getSnapshotHistory(limit = 100): Promise<Array<{ id: string; createdAt: string; source: RefreshSource | null }>> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return [];
 
   const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
   const { data, error } = await supabase
     .from("dashboard_snapshots")
-    .select("id, created_at, payload")
+    .select("id, created_at, refresh_runs(source)")
     .order("created_at", { ascending: false })
     .limit(safeLimit);
 
@@ -136,11 +136,15 @@ export async function getSnapshotHistory(limit = 100): Promise<StoredSnapshot[]>
     if (error.code === "42P01") return [];
     throw new Error(`히스토리 조회 실패: ${error.message}`);
   }
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    createdAt: row.created_at as string,
-    payload: parseDashboardSnapshot(row.payload, `히스토리 스냅샷 ${row.id as string}`),
-  }));
+  return (data ?? []).map((row) => {
+    const run = Array.isArray(row.refresh_runs) ? row.refresh_runs[0] : row.refresh_runs;
+    const source = run?.source;
+    return {
+      id: row.id as string,
+      createdAt: row.created_at as string,
+      source: source === "macro" || source === "market" || source === "social" || source === "all" ? source : null,
+    };
+  });
 }
 
 export async function getSnapshotById(id: string): Promise<StoredSnapshot | null> {

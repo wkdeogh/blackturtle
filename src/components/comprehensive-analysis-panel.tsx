@@ -39,9 +39,7 @@ async function copyText(value: string): Promise<void> {
 }
 
 const MODEL_DESCRIPTIONS: Record<OpenAIComprehensiveModel, string> = {
-  "gpt-5.6-sol": "최고 성능",
-  "gpt-5.6-terra": "성능·비용 균형",
-  "gpt-5.6-luna": "빠르고 비용 효율적",
+  "gpt-6-luna": "빠르고 비용 효율적",
 };
 
 function shortText(value: string, maxLength: number): string {

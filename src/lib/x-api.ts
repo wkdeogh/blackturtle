@@ -142,6 +142,7 @@ export async function prepareXCollection(
   const previousCursors = new Map(previous?.accounts.map((account) => [account.username.toLowerCase(), account]) ?? []);
   const results: Array<{ cursor: XAccountCursor; posts: RawSocialPost[] }> = [];
   const collectionWarnings: string[] = [];
+  const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
   let apiCalls = 0;
   let targetsAttempted = 0;
   let targetsSucceeded = 0;
@@ -167,7 +168,12 @@ export async function prepareXCollection(
     try {
       const user = oldCursor?.userId ? { id: oldCursor.userId, username } : await getUser(username, token);
       if (!oldCursor?.userId) apiCalls += 1;
-      const canUseCursor = previous && previous.periodDays >= lookbackDays;
+      const hasRecentSavedPost = previous?.posts.some((post) =>
+        post.source !== "ticker"
+        && post.username.toLowerCase() === username.toLowerCase()
+        && new Date(post.postedAt).getTime() >= cutoff,
+      );
+      const canUseCursor = previous && previous.periodDays >= lookbackDays && hasRecentSavedPost;
       const effectiveLimit = perAccountPostLimit === null
         ? remainingTotal
         : remainingTotal === null
@@ -194,7 +200,6 @@ export async function prepareXCollection(
     }
   }
 
-  const cutoff = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
   const merged = new Map<string, RawSocialPost>();
   for (const post of previous?.posts ?? []) {
     if (post.source === "ticker" || post.matchedTickers?.length || new Date(post.postedAt).getTime() >= cutoff) {
@@ -223,13 +228,24 @@ export async function prepareXCollection(
       return true;
     })
     .slice(0, totalPostLimit ?? undefined);
+  const failedTargets = collectionWarnings.length;
+  const retainedAccountPosts = accountPosts.length ? accountPosts : (previous?.posts ?? [])
+    .filter((post) => post.source !== "ticker")
+    .map((post) => {
+      const { mentions: _mentions, translationKo: _translationKo, analyzed: _analyzed, ...raw } = post;
+      void _mentions; void _translationKo; void _analyzed;
+      return raw;
+    });
+  if (!accountPosts.length && retainedAccountPosts.length) {
+    collectionWarnings.push("수집 기간 내 게시물이 없어 이전 계정 데이터를 유지했습니다.");
+  }
   // 계정 타임라인에도 검색 티커가 붙은 동일 게시물이 있을 수 있다. 계정 상한에
   // 걸리더라도 티커 검색 결과에서는 사라지지 않도록 별도로 보존한다.
-  const selectedAccountIds = new Set(accountPosts.map((post) => post.id));
+  const selectedAccountIds = new Set(retainedAccountPosts.map((post) => post.id));
   const preservedTickerPosts = [...merged.values()]
     .filter((post) => post.source === "ticker" || Boolean(post.matchedTickers?.length))
     .map((post) => selectedAccountIds.has(post.id) ? post : { ...post, source: "ticker" as const });
-  const rawPosts = [...new Map([...accountPosts, ...preservedTickerPosts].map((post) => [post.id, post])).values()]
+  const rawPosts = [...new Map([...retainedAccountPosts, ...preservedTickerPosts].map((post) => [post.id, post])).values()]
     .sort((left, right) => right.postedAt.localeCompare(left.postedAt));
 
   const canReusePreviousAnalysis = previous?.analysisModel === analysisModel
@@ -254,7 +270,7 @@ export async function prepareXCollection(
       apiCalls,
       targetsAttempted,
       targetsSucceeded,
-      targetsFailed: collectionWarnings.length,
+      targetsFailed: failedTargets,
       fetchedPosts: results.reduce((sum, result) => sum + result.posts.length, 0),
       reusedAnalyses: rawPosts.filter((post) => previousPosts.has(post.id)).length,
       pendingAnalyses: postsToAnalyze.length,
