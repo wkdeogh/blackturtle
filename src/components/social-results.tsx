@@ -166,6 +166,7 @@ export function SocialResults({ social, expanded = false, mode = "accounts" }: {
   }, [displayedPosts]);
   const companies = expanded ? filteredCompanies : filteredCompanies.slice(0, 12);
   const accountLabel = selectedAccount === "all" ? (mode === "tickers" ? "전체 티커" : "전체 계정") : mode === "tickers" ? `$${selectedAccount}` : `@${selectedAccount}`;
+  const showingPreviousAccountData = mode === "accounts" && social.collectionWarnings?.some((warning) => warning.includes("이전 계정 데이터를 유지했습니다") || warning.includes("복원했습니다"));
   const scopedPostIds = useMemo(() => new Set(scopedPosts.map((post) => post.id)), [scopedPosts]);
   const topics = useMemo(() => (social.topics ?? []).map((topic) => ({ ...topic, postIds: topic.postIds.filter((id) => scopedPostIds.has(id)), postCount: topic.postIds.filter((id) => scopedPostIds.has(id)).length })).filter((topic) => topic.postCount > 0), [scopedPostIds, social.topics]);
   const postsById = useMemo(() => new Map(scopedPosts.map((post) => [post.id, post])), [scopedPosts]);
@@ -173,7 +174,7 @@ export function SocialResults({ social, expanded = false, mode = "accounts" }: {
   return (
     <>
       {social.collectionWarnings?.length ? <aside className="market-warning" role="status"><strong>X 수집 안내</strong>{social.collectionWarnings.map((warning) => <span key={warning}>{warning}</span>)}</aside> : null}
-      {social.collectionMetrics ? <div className="collection-metric-strip"><span>API 호출 <b>{social.collectionMetrics.apiCalls}</b></span><span>성공 대상 <b>{social.collectionMetrics.targetsSucceeded}/{social.collectionMetrics.targetsAttempted}</b></span><span>신규 게시물 <b>{social.collectionMetrics.fetchedPosts}</b></span><span>분석 재사용 <b>{social.collectionMetrics.reusedAnalyses}</b></span></div> : null}
+      {social.collectionMetrics ? <div className="collection-metric-strip"><span>API 호출 <b>{social.collectionMetrics.apiCalls}</b></span><span>성공 대상 <b>{social.collectionMetrics.targetsSucceeded}/{social.collectionMetrics.targetsAttempted}</b></span><span>X 조회 게시물 <b>{social.collectionMetrics.fetchedPosts}</b></span><span>분석 재사용 <b>{social.collectionMetrics.reusedAnalyses}</b></span></div> : null}
       <section className="section-block topic-section">
         <div className="section-title"><div><p className="kicker">01 · RECURRING THEMES</p><h2>주요 주제</h2></div><p>{mode === "tickers" ? "티커 검색" : "계정 수집"} · 빈도순 · {social.topicModel ? `OpenAI ${social.topicModel}` : "LLM 분석 후 생성"}</p></div>
         {social.topicSummaryStale ? <div className="topic-stale-notice">최근 X 수집분은 아직 반영되지 않았습니다. 저장 데이터 LLM 재분석을 실행하면 갱신됩니다.</div> : null}
@@ -185,7 +186,7 @@ export function SocialResults({ social, expanded = false, mode = "accounts" }: {
         <label htmlFor="social-account-filter">{mode === "tickers" ? "티커" : "계정"} 선택<select id="social-account-filter" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="all">전체</option>{accountNames.map((name) => <option value={name} key={name}>{mode === "tickers" ? `$${name}` : `@${name}`}</option>)}</select></label>
       </section>
       <section className="section-block signal-section">
-        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · 최근 {mode === "tickers" ? social.tickerPeriodDays ?? 1 : social.periodDays}일 · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
+        <div className="section-title"><div><p className="kicker">02 · MENTION SUMMARY</p><h2>기업 언급</h2></div><p>{accountLabel} · {showingPreviousAccountData ? "이전 데이터" : `최근 ${mode === "tickers" ? social.tickerPeriodDays ?? 1 : social.periodDays}일`} · 분석 {filteredAnalyzedCount}/{filteredPosts.length}개</p></div>
         <div className="signal-grid filter-swap" key={selectedAccount}>
           <div className="company-board">
             <div className="board-head"><span>RANK / COMPANY</span><span>SENTIMENT</span><span>MENTIONS</span></div>
