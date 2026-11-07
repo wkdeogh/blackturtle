@@ -1,7 +1,9 @@
 import { collectRefreshSnapshot, refreshErrorMessage } from "@/lib/refresh-runner";
 import { collectAlphaVantageMarketBatch, collectAlphaVantagePortfolioBatch } from "@/lib/alpha-vantage-market-data";
 import { collectMarketResearchData, collectMacroResearchData } from "@/lib/investor-research";
-import { collectMarketBatch, collectPortfolioMarketBatch, MARKET_CORE_IDS, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, MARKET_SIGNAL_IDS, type MarketBatchResult } from "@/lib/market-data";
+import { collectMarketBatch, collectPortfolioMarketBatch, MARKET_CORE_BATCH_IDS, MARKET_COUNTRY_IDS, MARKET_PRIMARY_IDS, MARKET_SIGNAL_BATCH_IDS, type MarketBatchResult } from "@/lib/market-data";
+import { publishRefreshWithNotifications } from "@/lib/publish-refresh";
+import { dispatchPushNotifications } from "@/lib/web-push";
 import { DEFAULT_OPENAI_ANALYSIS_MODEL, DEFAULT_OPENAI_TOPIC_MODEL } from "@/lib/openai-config";
 import { analyzePostBatchWithOpenAI, OPENAI_BATCH_SIZE, SOCIAL_ANALYSIS_PROMPT_VERSION, type PostAnalysisResult } from "@/lib/social-analysis";
 import { getInvestorResearchState, getLatestSnapshot, getMissingConfiguration, getPortfolioItems, getSupabaseAdmin, getXMonitorSettings, getXTickerMonitorSettings, recordRefreshMetric, saveMacroResearchPayload, saveMarketResearchPayload } from "@/lib/supabase";
@@ -107,16 +109,16 @@ collectMacroAndStoreDraft.maxRetries = 0;
 
 async function collectPrimaryMarketData(): Promise<MarketBatchResult> {
   "use step";
-  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_CORE_IDS);
-  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_CORE_IDS);
+  if (process.env.TWELVE_DATA_API_KEY) return collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_CORE_BATCH_IDS);
+  if (process.env.ALPHA_VANTAGE_API_KEY) return collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_CORE_BATCH_IDS);
   throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
 }
 
 async function collectSignalMarketData(): Promise<MarketBatchResult> {
   "use step";
   try {
-    if (process.env.TWELVE_DATA_API_KEY) return await collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_SIGNAL_IDS);
-    if (process.env.ALPHA_VANTAGE_API_KEY) return await collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_SIGNAL_IDS);
+    if (process.env.TWELVE_DATA_API_KEY) return await collectMarketBatch(process.env.TWELVE_DATA_API_KEY, MARKET_SIGNAL_BATCH_IDS);
+    if (process.env.ALPHA_VANTAGE_API_KEY) return await collectAlphaVantageMarketBatch(process.env.ALPHA_VANTAGE_API_KEY, MARKET_SIGNAL_BATCH_IDS);
     throw new Error("설정되지 않은 환경 변수: ALPHA_VANTAGE_API_KEY 또는 TWELVE_DATA_API_KEY");
   } catch (error) {
     return { provider: process.env.TWELVE_DATA_API_KEY ? "Twelve Data" : "Alpha Vantage", series: [], warnings: [`시장 내부 신호: 이전 값 유지 · ${refreshErrorMessage(error)}`] };
@@ -524,19 +526,32 @@ async function storeSocialCollectionDraft(runId: string, context: SocialWorkflow
 
 async function publishRefresh(runId: string) {
   "use step";
-  const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
-  const { error } = await supabase.rpc("complete_refresh_from_draft", { p_run_id: runId });
-  if (error) throw new Error(`스냅샷 저장 실패: ${error.message}`);
+  await publishRefreshWithNotifications(runId);
 }
 
 async function recoverDraftOrFail(runId: string, message: string): Promise<boolean> {
   "use step";
-  const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Supabase 연결이 설정되지 않았습니다.");
-  const { data, error } = await supabase.rpc("recover_refresh_draft_or_fail", { p_run_id: runId, p_error: message });
-  if (error) throw new Error(`갱신 복구 상태 저장 오류: ${error.message}`);
-  return Boolean(data);
+  return publishRefreshWithNotifications(runId, message);
+}
+
+async function deliverNotifications() {
+  "use step";
+  return dispatchPushNotifications();
+}
+
+async function recordNotificationFailure(runId: string) {
+  "use step";
+  await recordRefreshMetric(runId, "push_notifications", { warning: "일부 푸시 알림 전송 실패 · 대기열에 보관했습니다." });
+}
+
+async function deliverNotificationsSafely(runId: string) {
+  try {
+    let hasMore = true;
+    while (hasMore) hasMore = (await deliverNotifications()).hasMore;
+  } catch {
+    // Notification service outages must not turn a successful data refresh into a failure.
+    try { await recordNotificationFailure(runId); } catch { /* The published data remains usable even if metrics are unavailable. */ }
+  }
 }
 
 export async function refreshDataWorkflow(
@@ -734,6 +749,7 @@ export async function refreshDataWorkflow(
     }
     stage = "스냅샷 저장";
     await publishRefresh(runId);
+    await deliverNotificationsSafely(runId);
     if (source === "all" && comprehensiveModel) {
       try {
         stage = "종합분석 작업 등록";
@@ -747,6 +763,7 @@ export async function refreshDataWorkflow(
   } catch (error) {
     const message = `${stage}: ${refreshErrorMessage(error)}`;
     const recovered = await recoverDraftOrFail(runId, message);
+    if (recovered) await deliverNotificationsSafely(runId);
     return recovered ? { ok: true, recovered: true } : { ok: false, error: message };
   }
 }

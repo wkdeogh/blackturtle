@@ -396,6 +396,17 @@ html[data-theme="dark"] .turtle-logo img { filter: brightness(1.35) saturate(.9)
 .inline-empty { border: 1px dashed var(--line); border-radius: 14px; padding: 34px; color: var(--muted); text-align: center; font-size: 12px; }
 .social-empty { min-height: 380px; }
 .settings-page-content { min-height: calc(100svh - 142px); max-width: 820px; }
+.notification-settings-link { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: var(--card); }
+.notification-settings-link:hover { background: var(--hover-bg); }
+.push-settings { scroll-margin-top: 100px; margin: 28px 0 36px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+.push-settings-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.push-settings h2 { margin: 5px 0 0; font-family: Georgia, serif; font-size: 28px; font-weight: 500; letter-spacing: -.03em; }
+.push-settings-rules { list-style: none; padding: 0; margin: 20px 0; }
+.push-settings-rules li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.push-settings-rules span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.push-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.push-settings-actions button { min-height: 44px; }
+.push-settings .settings-message { font-size: 12px; overflow-wrap: anywhere; }
 .page-intro { padding-bottom: 32px; border-bottom: 1px solid var(--line); }
 .page-intro h1 { margin: 10px 0 14px; font-family: Georgia, serif; font-size: clamp(44px, 7vw, 72px); font-weight: 500; line-height: 1; letter-spacing: -.055em; }
 .page-intro > p:last-child { max-width: 620px; margin: 0; color: var(--muted); font-size: 14px; }

@@ -37,6 +37,7 @@ export interface MarketBatchResult {
 export const MARKET_DEFINITIONS: readonly MarketDefinition[] = [
   { id: "sp500", label: "S&P 500", symbol: "SPY", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "S&P 500 ETF 대용" },
   { id: "nasdaq", label: "나스닥", symbol: "QQQ", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "Nasdaq-100 ETF 대용" },
+  { id: "dow", label: "다우", symbol: "DIA", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "Dow Jones Industrial Average ETF 대용" },
   { id: "gold", label: "금", symbol: "GLD", group: "market", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "금 현물 추종 ETF" },
   { id: "bitcoin", label: "비트코인", symbol: "BTC/USD", group: "market", instrumentType: "crypto", currency: "USD", decimals: 0 },
   { id: "usdkrw", label: "원·달러 환율", symbol: "USD/KRW", group: "market", instrumentType: "forex", currency: "KRW", decimals: 2 },
@@ -56,8 +57,11 @@ export const MARKET_DEFINITIONS: readonly MarketDefinition[] = [
   { id: "japan", label: "일본", symbol: "EWJ", group: "country", instrumentType: "etf", currency: "USD", decimals: 2, benchmark: "MSCI Japan ETF" },
 ];
 
-export const MARKET_CORE_IDS = ["sp500", "nasdaq", "gold", "bitcoin", "usdkrw", "dollar_index", "kospi", "sox"];
+export const MARKET_CORE_IDS = ["sp500", "nasdaq", "dow", "gold", "bitcoin", "usdkrw", "dollar_index", "kospi", "sox"];
+// Twelve Data 무료 플랜은 분당 8크레딧이다. 다우는 7개 내부 신호와 함께 수집한다.
+export const MARKET_CORE_BATCH_IDS = MARKET_CORE_IDS.filter((id) => id !== "dow");
 export const MARKET_SIGNAL_IDS = ["equal_weight", "small_cap", "high_yield", "treasury_intermediate", "investment_grade", "consumer_discretionary", "consumer_staples"];
+export const MARKET_SIGNAL_BATCH_IDS = ["dow", ...MARKET_SIGNAL_IDS];
 export const MARKET_PRIMARY_IDS = [...MARKET_CORE_IDS, ...MARKET_SIGNAL_IDS];
 export const MARKET_COUNTRY_IDS = MARKET_DEFINITIONS.filter((definition) => definition.group === "country").map((definition) => definition.id);
 
