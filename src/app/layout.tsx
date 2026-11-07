@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { ToastViewport } from "@/components/toast-viewport";
 import turtleBlackLogo from "../../turtle_black.png";
+import "@fontsource-variable/noto-sans-kr";
+import "@fontsource-variable/noto-serif-kr";
 import "./globals.css";
 
 export const metadata: Metadata = {
